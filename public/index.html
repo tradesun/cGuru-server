@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tech Partner Assessment Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="page-bg">
+    <div class="layout-container space-y-6">
+      <!-- Header -->
+      <header class="header-bar">
+        <div>
+          <h1 class="title-main text-2xl md:text-3xl">Tech Partner Assessment Dashboard</h1>
+          <p class="subtitle text-sm md:text-base mt-1">Your current maturity across 10 operating categories. Track progress and jump straight to your next recommended step.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnRecalc" class="button-outline">Recalculate</button>
+          <button id="btnExport" class="button-primary">Export Report</button>
+        </div>
+      </header>
+
+      <!-- Alerts / Messages -->
+      <div id="message" class="message-bar hidden"></div>
+
+      <!-- Total Score Card -->
+      <section>
+        <div class="card ring-amber">
+          <div class="card-body">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+              <!-- Score dial substitute -->
+              <div class="flex items-center justify-center" style="margin-right: 33px;">
+                <div class="score-dial">
+                  <div class="text-center z-10">
+                    <div class="dial-title">Total Score</div>
+                    <div class="dial-value"><span id="avgPercent">--</span><span class="text-2xl align-super">%</span></div>
+                    <div class="trend">
+                      <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+                      <span id="trendText">+6% last 30 days</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Summary text -->
+              <div class="summary-block">
+                <div class="text-sm text-teal-800/80">Maturity Snapshot</div>
+                <h2 class="summary-title">Operational efficiency trending up</h2>
+                <p class="summary-text">You’re progressing across most categories. Focus areas this month: <span class="font-medium">People & Org Design</span> and <span class="font-medium">Governance</span>. Quick wins in <span class="font-medium">Client Success</span> and <span class="font-medium">Support</span>.</p>
+                <div class="chips">
+                  <span class="chip">Benchmark: 64%</span>
+                  <span class="chip">Peers (ANZ MSPs): 61–72%</span>
+                  <span class="chip">Last full assessment: 02 Sep 2025</span>
+                </div>
+              </div>
+
+              <!-- Timeframe tabs (static) -->
+              <div class="md:justify-self-end w-full md:w-auto" style="margin-right: 58px;">
+                <div class="timeframe-tabs">
+                  <div class="tabs-list">
+                    <button data-state="">30d</button>
+                    <button data-state="active">90d</button>
+                    <button data-state="">12m</button>
+                    <button data-state="">18m</button>
+                    <button data-state="">24m</button>
+                  </div>
+                  <div class="tabs-caption">Viewing trends for: last 90 days</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Assessment Grid (cards) -->
+      <section>
+        <div id="assessmentsGrid" class="assessments-grid"></div>
+      </section>
+
+      <!-- Legend / maturity explanation -->
+      <section>
+        <div class="legend-card mt-4">
+          <div class="legend-body">
+            <span class="font-medium text-teal-900">How we measure maturity</span>
+            <span class="inline-flex items-center gap-2"><span class="legend-dot dot-init"></span> 0–20% Initiating</span>
+            <span class="inline-flex items-center gap-2"><span class="legend-dot dot-emerg"></span> 20–50% Emerging</span>
+            <span class="inline-flex items-center gap-2"><span class="legend-dot dot-estab"></span> 50–80% Established</span>
+            <span class="inline-flex items-center gap-2"><span class="legend-dot dot-opt"></span> 80–100% Optimised</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script src="/js/constants.js" defer></script>
+    <script src="/js/api.js" defer></script>
+    <script src="/js/dashboard.js" defer></script>
+  </body>
+  </html>
+
+
