@@ -1,4 +1,4 @@
-// db.js
+// db.js aa
 // Provides a shared MySQL connection pool used by repositories.
 // Configuration is taken from environment variables with sensible defaults.
 const mysql = require('mysql2/promise');
