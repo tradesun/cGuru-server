@@ -28,10 +28,16 @@
       <section>
         <div class="card ring-amber">
           <div class="card-body">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center" style="grid-template-columns: 25% 40% 30%;">
               <!-- Score dial substitute -->
               <div class="flex items-center justify-center" style="margin-right: 33px;">
                 <div class="score-dial">
+                  <!-- dual ring arcs -->
+                  <svg id="dialRings" viewBox="0 0 42 42" width="160" height="160" class="absolute">
+                    <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#e5e7eb" stroke-width="3" />
+                    <circle id="dialPeerArc" cx="21" cy="21" r="15.915" fill="transparent" stroke="#6c7a89" stroke-width="3" stroke-linecap="round" stroke-dasharray="0 100" transform="rotate(-90 21 21)" />
+                    <circle id="dialUserArc" cx="21" cy="21" r="15.915" fill="transparent" stroke="#0f766e" stroke-width="3" stroke-linecap="round" stroke-dasharray="0 100" transform="rotate(-90 21 21)" />
+                  </svg>
                   <div class="text-center z-10">
                     <div class="dial-title">Total Score</div>
                     <div class="dial-value"><span id="avgPercent">--</span><span class="text-2xl align-super">%</span></div>
@@ -47,28 +53,165 @@
               <div class="summary-block">
                 <div class="text-sm text-teal-800/80">Maturity Snapshot</div>
                 <h2 class="summary-title">Operational efficiency trending up</h2>
-                <p class="summary-text">You’re progressing across most categories. Focus areas this month: <span class="font-medium">People & Org Design</span> and <span class="font-medium">Governance</span>. Quick wins in <span class="font-medium">Client Success</span> and <span class="font-medium">Support</span>.</p>
-                <div class="chips">
+                <p class="summary-text">You’re progressing across most categories. Focus this month: <span class="font-medium">People & Org Design</span> and <span class="font-medium">Governance</span>. Quick wins in <span class="font-medium">Client Success</span> and <span class="font-medium">Support</span>.</p>
+                <div class="chips" style="display:flex;">
                   <span class="chip">Benchmark: 64%</span>
-                  <span class="chip">Peers (ANZ MSPs): 61–72%</span>
+                  <span class="chip">Peers (Australia/NZ): 68%</span>
                   <span class="chip">Last full assessment: 02 Sep 2025</span>
+                </div>
+                <!-- Region selector -->
+                <div class="mt-3" aria-label="Region selector">
+                  <div class="tabs-list" style="max-width: 520px;">
+                    <button data-state="">Global</button>
+                    <button data-state="">US</button>
+                    <button data-state="">UK</button>
+                    <button data-state="active">Australia/NZ</button>
+                    <button data-state="">Other</button>
+                  </div>
                 </div>
               </div>
 
               <!-- Timeframe tabs (static) -->
-              <div class="md:justify-self-end w-full md:w-auto" style="margin-right: 58px;">
+              <div class="md:justify-self-end w-full md:w-auto">
                 <div class="timeframe-tabs">
-                  <div class="tabs-list">
+                  <div class="tabs-list" style="grid-template-columns: 90px 90px 90px;">
                     <button data-state="">30d</button>
                     <button data-state="active">90d</button>
                     <button data-state="">12m</button>
-                    <button data-state="">18m</button>
-                    <button data-state="">24m</button>
+                    <!--<button data-state="">18m</button>-->
+                    <!--<button data-state="">24m</button>-->
                   </div>
-                  <div class="tabs-caption">Viewing trends for: last 90 days</div>
+                  <div class="tabs-caption" style="text-align: center;">Viewing trends for: last 90 days</div>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Company profile band -->
+      <section>
+        <div class="profile-band">
+          <div class="profile-items">
+            <div class="profile-item"><span class="label">Country:</span> <span id="profileCountry">Australia</span></div>
+            <div class="profile-item"><span class="label">Region:</span> <span id="profileRegion">NSW</span></div>
+            <div class="profile-item"><span class="label">Location:</span> <span id="profileLocation">Metro</span></div>
+            <div class="profile-item"><span class="label">Size:</span> <span id="profileSize">25 staff</span></div>
+            <div class="profile-item"><span class="label">Type:</span> <span id="profileType">MSP</span></div>
+          </div>
+          <div class="profile-actions">
+            <span class="last-updated">Last updated: <span id="profileLastUpdated">--</span></span>
+            <button id="profileEditBtn" class="button-secondary flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+              Edit
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Company profile edit panel -->
+      <section id="profileEditPanel" class="profile-form hidden">
+        <div id="profileFormMsg" class="form-msg hidden" role="alert"></div>
+        <div class="form-grid">
+          <div class="field">
+            <label class="label">Country</label>
+            <select id="profileCountryInput" class="input">
+              <option>Australia</option>
+              <option>New Zealand</option>
+              <option>United States</option>
+              <option>United Kingdom</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label">State / Region</label>
+            <select id="profileRegionInput" class="input">
+              <option>NSW</option>
+              <option>VIC</option>
+              <option>QLD</option>
+              <option>WA</option>
+              <option>SA</option>
+              <option>TAS</option>
+              <option>NT</option>
+              <option>ACT</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label">Location Type</label>
+            <div class="segmented">
+              <button type="button" id="locMetroBtn" class="seg-btn is-active">Metro</button>
+              <button type="button" id="locRegionalBtn" class="seg-btn">Regional</button>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Organisation Size (staff)</label>
+            <input id="profileSizeInput" class="input" type="number" min="1" placeholder="25" />
+          </div>
+          <div class="field">
+            <label class="label">Years Operating</label>
+            <input id="profileYearsInput" class="input" type="number" min="0" placeholder="7" />
+          </div>
+          <div class="field">
+            <label class="label">Organisation Type</label>
+            <select id="profileTypeInput" class="input">
+              <option>MSP</option>
+              <option>MSSP</option>
+              <option>SI</option>
+              <option>Consultancy</option>
+            </select>
+          </div>
+          <div class="field col-span-2">
+            <label class="label">Top-line Revenue (optional)</label>
+            <input id="profileRevenueInput" class="input" type="text" placeholder="$" />
+          </div>
+        </div>
+        <div class="profile-form-footer">
+          <span class="last-updated">Last updated: <span id="profileEditLast">--</span></span>
+          <div class="actions">
+            <button id="profileCancelBtn" class="button-secondary">Cancel</button>
+            <button id="profileSaveBtn" class="button-primary">Save Profile</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Benchmarking panel -->
+      <section>
+        <div class="card card-lg shadow-sm mt-4">
+          <div class="p-5">
+            <div class="bm-collapsed">
+              <div class="bm-inner bm-left" style="flex: 2;">
+                <div class="bm-head">
+                  <h4 class="bm-title-main">Benchmarking — Your Score vs Benchmark</h4>
+                  <span id="bmCompare" class="bm-compare">--</span>
+                </div>
+                <p class="bm-sub">Compare your overall score with peers to understand where you stand at a glance.</p>
+                <div class="bm-row">
+                  <div class="bm-row-label">Global Benchmark</div>
+                  <div class="bm-row-track"><div id="bmBarPeer" class="bm-row-bar bm-peer" style="width:0%"></div></div>
+                  <div id="bmPeerVal" class="bm-row-val">--%</div>
+                </div>
+                <div class="bm-row">
+                  <div class="bm-row-label">Your Score</div>
+                  <div class="bm-row-track"><div id="bmBarScore" class="bm-row-bar bm-score" style="width:0%"></div></div>
+                  <div id="bmScoreVal" class="bm-row-val">--%</div>
+                </div>
+              </div>
+              <div class="bm-inner bm-right">
+                <div class="bm-right-head">
+                  <h2>Expand for Category Benchmarks</h2>
+                  <button id="bmToggleBtn" class="expand-btn button-secondary">Expand</button>
+                </div>
+               
+                <div class="bm-summary">
+                  <div class="item"><span class="label">Global Benchmark</span><span id="bmSummaryPeer" class="value">--%</span></div>
+                  <div class="item"><span class="label">Your Score</span><span id="bmSummaryScore" class="value">--%</span></div>
+                  <div class="item"><span class="label">Status</span><span id="bmSummaryStatus" class="value highlight">—</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="bmGrid" class="px-5 pb-5 hidden">
+            <div class="bm-grid" id="bmGridInner"></div>
           </div>
         </div>
       </section>

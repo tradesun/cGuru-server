@@ -1,0 +1,112 @@
+[
+    {
+      "assessment_id": 1,
+      "title": "Business Strategy & Planning",
+      "Overview": "This category focuses on how a Technology Solutions Partner defines its strategic direction, sets long-term goals, and aligns its operations to achieve sustainable growth. It includes how decisions are made, how performance is measured, and how the business adapts to change and opportunity.",
+      "Why this matters": "Strength in Business Strategy & Planning ensures every team knows the direction, priorities, and cadence. Mature practices correlate with higher growth and margin stability.",
+      "Quick tips": [
+        "Publish a 1-page strategy with 3–5 annual priorities.",
+        "Run quarterly reviews linking KPIs to strategic outcomes.",
+        "Make your BHAG and values part of hiring & client choices."
+      ]
+    },
+    {
+      "assessment_id": 2,
+      "title": "Organisational Design, People & HR",
+      "Overview": "This category covers how the business is structured and how it supports its people. It includes organisational structure, role clarity, HR processes, recruitment, training, wellbeing, and how the organisation builds a culture that supports performance, engagement, and development.",
+      "Why this matters": "A well-designed organisation attracts and retains top talent, reduces friction, and boosts engagement. Strong people practices directly impact delivery quality, growth, and employee wellbeing.",
+      "Quick tips": [
+        "Define clear roles and accountabilities for each team member.",
+        "Build structured onboarding and continuous training programs.",
+        "Regularly measure employee engagement and act on feedback."
+      ]
+    },
+    {
+      "assessment_id": 3,
+      "title": "Finance, Commercials & Administration",
+      "Overview": "This category looks at how the business manages its financial operations, commercial models, and administrative processes. It includes how revenue and costs are tracked, how billing and procurement are handled, and how financial decisions are supported by systems and controls.",
+      "Why this matters": "Financial discipline provides stability and resilience. Transparent commercials, accurate billing, and sound administration free up leaders to focus on growth instead of firefighting.",
+      "Quick tips": [
+        "Track gross margin and profitability by service line.",
+        "Automate invoicing and collections to reduce delays.",
+        "Implement monthly financial health dashboards."
+      ]
+    },
+    {
+      "assessment_id": 4,
+      "title": "Solution Productisation",
+      "Overview": "This category focuses on how services and solutions are defined, packaged, and delivered in a consistent and scalable way. It includes how offerings are developed, priced, documented, and maintained to ensure they meet client needs and support business growth.",
+      "Why this matters": "Productised services create clarity for clients and consistency for delivery teams. Standardisation drives scale, margin, and easier sales conversations.",
+      "Quick tips": [
+        "Build service blueprints with clear inclusions and exclusions.",
+        "Create tiered packages to suit different client needs.",
+        "Regularly review pricing to align with market demand and cost."
+      ]
+    },
+    {
+      "assessment_id": 5,
+      "title": "Go-To-Market & Demand Generation",
+      "Overview": "This category is about how the business positions itself in the market and generates interest in its solutions. It includes marketing, sales alignment, lead generation, messaging, and how the business attracts and engages the right clients.",
+      "Why this matters": "Clear positioning and effective demand generation keep the pipeline healthy. Strong GTM strategies connect the right message with the right clients, driving sustainable growth.",
+      "Quick tips": [
+        "Define your ideal client profile and align messaging to it.",
+        "Run integrated campaigns across at least 3 channels.",
+        "Align marketing and sales targets for joint accountability."
+      ]
+    },
+    {
+      "assessment_id": 6,
+      "title": "Client Experience & Success",
+      "Overview": "This category focuses on how the business builds strong, long-term relationships with clients. It includes how value is delivered, how feedback is gathered, and how the business ensures clients are supported, satisfied, and achieving their goals.",
+      "Why this matters": "Client retention fuels growth more than new sales. A strong client success model ensures satisfaction, referrals, and upsell opportunities.",
+      "Quick tips": [
+        "Create a structured client onboarding journey.",
+        "Run quarterly business reviews focused on outcomes.",
+        "Track NPS and act quickly on detractors."
+      ]
+    },
+    {
+      "assessment_id": 7,
+      "title": "Advisory, Governance, Risk & Compliance",
+      "Overview": "This category covers how the business provides strategic guidance and ensures both it and its clients operate responsibly. It includes risk management, compliance with regulations, policy development, and how governance frameworks are applied.",
+      "Why this matters": "Governance builds trust with clients, vendors, and regulators. Strong risk and compliance practices reduce exposure and protect long-term reputation.",
+      "Quick tips": [
+        "Maintain a risk register with quarterly reviews.",
+        "Map compliance requirements and assign ownership.",
+        "Establish a board or advisory council for governance oversight."
+      ]
+    },
+    {
+      "assessment_id": 8,
+      "title": "Project & Change Services",
+      "Overview": "This category looks at how the business plans, delivers, and manages projects and change initiatives. It includes how work is scoped, resourced, tracked, and reviewed to ensure successful outcomes for both internal and client-facing initiatives.",
+      "Why this matters": "Strong project delivery builds credibility and drives profitability. Good change management ensures adoption and avoids wasted investment.",
+      "Quick tips": [
+        "Use standard project methodologies and toolsets.",
+        "Run project health checks at key milestones.",
+        "Assign clear ownership for change adoption outcomes."
+      ]
+    },
+    {
+      "assessment_id": 9,
+      "title": "Scalable Centralised Services",
+      "Overview": "This category focuses on how the business delivers services in a consistent, efficient, and scalable way. It includes the use of systems, automation, monitoring, and standardised processes to manage infrastructure, security, and service delivery across multiple clients.",
+      "Why this matters": "Scalable services reduce costs, increase efficiency, and improve client outcomes. Centralisation ensures consistent quality while freeing resources for innovation.",
+      "Quick tips": [
+        "Standardise processes across all clients where possible.",
+        "Invest in automation for repetitive service tasks.",
+        "Monitor performance with shared dashboards."
+      ]
+    },
+    {
+      "assessment_id": 10,
+      "title": "End User Enablement & Support",
+      "Overview": "This category is about how the business supports and empowers end users. It includes onboarding, training, communication, self-service, and how support is delivered in a way that improves user confidence, productivity, and satisfaction.",
+      "Why this matters": "Empowered users are productive, loyal, and less reliant on reactive support. Good enablement builds confidence and lowers total support costs.",
+      "Quick tips": [
+        "Create self-service knowledge bases with regular updates.",
+        "Provide short, role-based training sessions for new users.",
+        "Track user satisfaction scores after support interactions."
+      ]
+    }
+  ]

@@ -1,4 +1,4 @@
-// app.js x
+// app.js 
 // Express bootstrap: CORS, JSON with raw body capture, shared routes, and server startup.
 const express = require('express');
 const fs = require('fs');
@@ -36,6 +36,8 @@ app.get('/', (req, res) => {
 
 // Mount shared routes (webhooks + future REST)
 app.use('/', scoreRoutes);
+
+//app.use('/lib/', libraryRoutes);
 
 // Start HTTP server
 app.listen(port, '0.0.0.0', () => {

@@ -5,10 +5,14 @@ const {
   findAllSubmissionsByEmail,
   findSubmissionByResultKey,
   findCategoryScoresBySubmissionId,
-  findQuestionsAndAnswersWithCategory
+  findQuestionsAndAnswersWithCategory,
+  findLowestCategoriesForEmail
 } = require('../repositories/read.repository');
-const { createAction, getActionsByEmail, reorderActions, removeActionById } = require('../repositories/actions.repository');
-const { getRecommendationByCategoryAndStage } = require('../repositories/recommendations.repository');
+const { createAction, getActionsByEmail, reorderActions, removeActionById, setActionOwnerEmail, updateActionStatusAndPostpone, setActionOwnerAcknowledged, setActionNotes, setActionStatus } = require('../repositories/actions.repository');
+const profileRepo = require('../repositories/profile.repository');
+const { getRecommendationByCategoryAndStage, getQuestionPlanByCodeAndStage } = require('../repositories/recommendations.repository');
+const nodemailer = require('nodemailer');
+const { assignmentEmail } = require('../utils/emailTemplates');
 
 // getTotalScores: GET /api/v1/getTotalScores?email=
 async function getTotalScores(req, res) {
@@ -16,6 +20,7 @@ async function getTotalScores(req, res) {
     const email = (req.query && req.query.email ? String(req.query.email) : '').toLowerCase().trim();
     if (!email) return res.status(400).json({ error: 'email is required' });
     const rows = await findLatestPerAssessmentByEmail(email);
+    const profile = await profileRepo.getByEmail(email).catch(() => null);
     const items = rows.map(r => ({
       assessment_id: r.assessment_id,
       submission_id: r.submission_id,
@@ -25,7 +30,7 @@ async function getTotalScores(req, res) {
         percent: Number(r.total_percent)
       }
     }));
-    return res.json({ email, items });
+    return res.json({ email, profile: profile || null, items });
   } catch (err) {
     console.error('getTotalScores error:', err);
     return res.status(500).json({ error: 'Internal Server Error' });
@@ -41,6 +46,7 @@ module.exports.getTotalScores = async function(req, res) {
     if (!email) return res.status(400).json({ error: 'email is required' });
 
     const rows = await findAllSubmissionsByEmail(email);
+    const profile = await profileRepo.getByEmail(email).catch(() => null);
     const byAssessment = new Map();
     for (const r of rows) {
       const key = r.assessment_id;
@@ -58,7 +64,7 @@ module.exports.getTotalScores = async function(req, res) {
         byAssessment.get(key).history.push(item);
       }
     }
-    return res.json({ email, assessments: Array.from(byAssessment.values()) });
+    return res.json({ email, profile: profile || null, assessments: Array.from(byAssessment.values()) });
   } catch (err) {
     console.error('getTotalScores (history) error:', err);
     return res.status(500).json({ error: 'Internal Server Error' });
@@ -77,13 +83,14 @@ async function submissionDetails(req, res) {
     const categories = await findCategoryScoresBySubmissionId(sub.submission_id);
     const qaRows = await findQuestionsAndAnswersWithCategory(sub.submission_id, sub.assessment_id);
 
-    // Group answers per question row id (preserves insert order by sq.id/sa.id)
+    // Group answers per question (preserves order by numeric question_code, then answer id)
     const byQuestionRow = new Map();
     for (const r of qaRows) {
-      const key = r.submission_question_row_id;
+      const key = r.question_row_id;
       if (!byQuestionRow.has(key)) {
         byQuestionRow.set(key, {
           question_id: r.question_id,
+          question_code: r.question_code || null,
           category_id: r.category_id || null,
           question_text: r.question_text,
           answers: []
@@ -140,10 +147,43 @@ async function submissionDetails(req, res) {
     let addedActions = [];
     try {
       const userActions = await getActionsByEmail(String(sub.email).toLowerCase());
-      addedActions = userActions.map(a => a.category_code).filter(Boolean);
+      const cats = userActions.map(a => a.category_code).filter(Boolean);
+      const qs = userActions.map(a => a.question_code).filter(Boolean);
+      addedActions = [...new Set([...cats, ...qs].map(String))];
     } catch (e) {
       // best-effort; ignore failures
     }
+
+    // Build quick lookup of stage per category for question enrichment
+    const stageByCategoryId = new Map();
+    for (const ec of enrichedCategories) {
+      stageByCategoryId.set(String(ec.category_id), Number(ec.stage));
+    }
+
+    // Enrich questions with progression_comment/benefit and availability flag from question_plan
+    const questionsArray = Array.from(byQuestionRow.values());
+    const enrichedQuestions = await Promise.all(questionsArray.map(async (q) => {
+      const code = q && q.question_code ? String(q.question_code) : '';
+      const catId = q && q.category_id ? String(q.category_id) : '';
+      const stageForCat = stageByCategoryId.has(catId) ? stageByCategoryId.get(catId) : undefined;
+      let progression_comment = null;
+      let benefit = null;
+      let plan_available = false;
+      if (code && Number.isInteger(stageForCat)) {
+        const plan = await getQuestionPlanByCodeAndStage(code, Number(stageForCat));
+        if (plan) {
+          progression_comment = plan.progression_comment || null;
+          benefit = plan.benefit || null;
+          plan_available = true;
+        }
+      }
+      return {
+        ...q,
+        progression_comment,
+        benefit,
+        plan_available
+      };
+    }));
 
     return res.json({
       result_key: resultKey,
@@ -156,7 +196,7 @@ async function submissionDetails(req, res) {
       },
       categories: enrichedCategories,
       added_actions: addedActions,
-      questions: Array.from(byQuestionRow.values())
+      questions: enrichedQuestions
     });
   } catch (err) {
     console.error('submissionDetails error:', err);
@@ -172,26 +212,37 @@ async function addAction(req, res) {
     const body = req.body || {};
     const email = (body.email ? String(body.email) : '').toLowerCase().trim();
     const categoryId = body.category_id ? String(body.category_id).trim() : '';
+    const categoryCodeFromClient = body.category_code ? String(body.category_code).trim() : '';
     const stageNum = Number(body.stage);
+    const actionType = (body.action_type ? String(body.action_type) : 'category').toLowerCase();
+    const questionCode = body.question_code ? String(body.question_code).trim() : '';
+
+    // Debug log - incoming payload
+    console.log('[api] addAction incoming', { email, actionType, categoryId, categoryCodeFromClient, questionCode, stageNum });
 
     // Basic validation
     if (!email || email.length > 200 || !email.includes('@')) {
       return res.status(400).json({ error: 'invalid email' });
     }
-    if (!categoryId) {
-      return res.status(400).json({ error: 'category_id is required' });
+    if (actionType === 'question') {
+      if (!questionCode) return res.status(400).json({ error: 'question_code is required' });
+      if (!Number.isInteger(stageNum)) return res.status(400).json({ error: 'stage must be an integer' });
+      const created = await createAction({ email, categoryId: categoryId || categoryCodeFromClient, stage: stageNum, actionType, questionCode, categoryCode: categoryCodeFromClient, addedBy: 'Manually added', actionStatus: 'Active' });
+      console.log('[api] addAction created(question)', created);
+      return res.status(201).json(created);
     }
-    if (!Number.isInteger(stageNum)) {
-      return res.status(400).json({ error: 'stage must be an integer' });
-    }
+    if (!categoryId) return res.status(400).json({ error: 'category_id is required' });
+    if (!Number.isInteger(stageNum)) return res.status(400).json({ error: 'stage must be an integer' });
 
-    const created = await createAction({ email, categoryId, stage: stageNum });
+    const created = await createAction({ email, categoryId, stage: stageNum, actionType: 'category', questionCode: null, addedBy: 'Manually added', actionStatus: 'Active' });
+    console.log('[api] addAction created(category)', created);
     return res.status(201).json(created);
   } catch (err) {
     if (err && err.status) {
+      console.error('[api] addAction error (handled)', { status: err.status, message: err.message });
       return res.status(err.status).json({ error: err.message });
     }
-    console.error('addAction error:', err);
+    console.error('[api] addAction error (unhandled):', err);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
@@ -232,15 +283,28 @@ async function getAllRecommendations(req, res) {
     const actions = await getActionsByEmail(email);
     const results = [];
     for (const a of actions) {
-      const rec = await getRecommendationByCategoryAndStage(a.category_code, Number(a.stage));
+      let rec = null;
+      if (a.action_type === 'question' && a.question_code) {
+        rec = await getQuestionPlanByCodeAndStage(a.question_code, Number(a.stage));
+      } else {
+        rec = await getRecommendationByCategoryAndStage(a.category_code, Number(a.stage));
+      }
       results.push({
         action: {
           id: a.id,
           email: a.email,
+          action_type: a.action_type,
           category_code: a.category_code,
+          question_code: a.question_code,
           category_name: a.category_title || null,
+          added_by: a.added_by || null,
+          action_status: a.action_status || null,
           stage: Number(a.stage),
-          list_order: Number(a.list_order)
+          list_order: Number(a.list_order),
+          owner_email: a.owner_email || null,
+          owner_acknowledged: a.owner_acknowledged ? true : false,
+          postpone_date: a.postpone_date || null,
+          notes: a.notes || null
         },
         recommendation: rec || null
       });
@@ -253,6 +317,46 @@ async function getAllRecommendations(req, res) {
 }
 
 module.exports.getAllRecommendations = getAllRecommendations;
+// updateProfile: POST /api/v1/updateProfile
+async function updateProfile(req, res) {
+  try {
+    const body = req.body || {};
+    const required = ['email','domain','country','region','location','size','type','years_operating'];
+    for (const k of required) {
+      if (body[k] === undefined || body[k] === null || String(body[k]).trim() === '') {
+        return res.status(400).json({ error: `missing field: ${k}` });
+      }
+    }
+    const payload = {
+      email: String(body.email).toLowerCase().trim(),
+      domain: String(body.domain).toLowerCase().trim(),
+      country: String(body.country).trim(),
+      region: String(body.region).trim(),
+      location: String(body.location).trim(),
+      size: String(body.size).trim(),
+      type: String(body.type).trim(),
+      years_operating: Number(body.years_operating),
+      top_line_revenue: body.top_line_revenue != null ? Number(body.top_line_revenue) : null,
+      last_updated: new Date()
+    };
+    if (!Number.isInteger(payload.years_operating) || payload.years_operating < 0) {
+      return res.status(400).json({ error: 'years_operating must be a non-negative integer' });
+    }
+
+    const existing = await profileRepo.getByDomain(payload.domain);
+    if (!existing) {
+      const id = await profileRepo.insertProfile(payload);
+      return res.status(201).json({ ok: true, created: true, id });
+    }
+    await profileRepo.updateByDomain(payload.domain, payload);
+    return res.json({ ok: true, updated: true });
+  } catch (err) {
+    console.error('updateProfile error:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+module.exports.updateProfile = updateProfile;
 
 // getRecommendationsForDetailsPage: POST /api/v1/get_recommendations_for_details_page
 async function getRecommendationsForDetailsPage(req, res) {
@@ -286,6 +390,76 @@ async function getRecommendationsForDetailsPage(req, res) {
 }
 
 module.exports.getRecommendationsForDetailsPage = getRecommendationsForDetailsPage;
+
+// systemRecommendations: GET /api/v1/systemRecommendations?email=
+async function systemRecommendations(req, res) {
+  try {
+    const email = (req.query && req.query.email ? String(req.query.email) : '').toLowerCase().trim();
+    if (!email) return res.status(400).json({ error: 'email is required' });
+
+    // Cap total active system recommendations at 20
+    const db = require('../db');
+    const [cntRows] = await db.execute(
+      "SELECT COUNT(*) AS cnt FROM actions WHERE email = ? AND added_by = ? AND (action_status IS NULL OR action_status = 'Active')",
+      [email, 'System Recommendation']
+    );
+    const currentCount = Number(cntRows && cntRows[0] ? cntRows[0].cnt : 0);
+    const remaining = Math.max(0, 20 - currentCount);
+    if (remaining <= 0) return res.json({ ok: true, added: 0, reason: 'limit_reached' });
+
+    // 1) pick lowest subcategories from current submissions
+    const lowest = await findLowestCategoriesForEmail(email, 50);
+
+    let actionsAdded = 0;
+    let remainingActions = remaining; // cap counts individual actions
+    for (const row of lowest) {
+      if (remainingActions <= 0) break;
+      const categoryId = String(row.category_id);
+      // Derive stage from the category percent
+      const pct = Number(row.min_percent);
+      let stageForCategory;
+      if (Number.isFinite(pct)) {
+        if (pct <= 10) stageForCategory = 0;        // Awareness
+        else if (pct <= 30) stageForCategory = 1;   // Foundational
+        else if (pct <= 50) stageForCategory = 2;   // Developing
+        else if (pct <= 70) stageForCategory = 3;   // Scaling
+        else if (pct <= 90) stageForCategory = 4;   // Optimizing
+        else stageForCategory = 5;                  // Leading
+      } else {
+        stageForCategory = 0;
+      }
+      // Category action
+      try {
+        const createdCat = await createAction({ email, categoryId, stage: stageForCategory, actionType: 'category', questionCode: null, addedBy: 'System Recommendation', actionStatus: 'Active' });
+        if (createdCat && createdCat.id) { actionsAdded += 1; remainingActions -= 1; }
+      } catch {}
+
+      // Pick 2 random questions by (assessment_id, category_id)
+      const qsql = `
+        SELECT DISTINCT q.question_code
+        FROM questions q
+        LEFT JOIN question_categories qc ON qc.question_id = q.question_id
+        WHERE q.assessment_id = ? AND qc.category_id = ?
+        ORDER BY RAND() LIMIT 2
+      `;
+      const [qrows] = await db.execute(qsql, [row.assessment_id, row.category_id]);
+      for (const qr of qrows) {
+        if (remainingActions <= 0) break;
+        const qCode = String(qr.question_code);
+        try {
+          const createdQ = await createAction({ email, categoryId, stage: stageForCategory, actionType: 'question', questionCode: qCode, addedBy: 'System Recommendation', actionStatus: 'Active' });
+          if (createdQ && createdQ.id) { actionsAdded += 1; remainingActions -= 1; }
+        } catch {}
+      }
+    }
+    return res.json({ ok: true, added: actionsAdded, existing: currentCount, limit: 20 });
+  } catch (err) {
+    console.error('systemRecommendations error:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+module.exports.systemRecommendations = systemRecommendations;
 
 // reorderAction: POST /api/v1/reorderAction?email=
 async function reorderAction(req, res) {
@@ -332,3 +506,120 @@ async function removeAction(req, res) {
 }
 
 module.exports.removeAction = removeAction;
+
+// sendAssignmentEmail: POST /api/v1/sendAssignmentEmail
+async function sendAssignmentEmail(req, res) {
+  try {
+    const GMAIL_USER = 'support@robust-mcore.com'
+    const GMAIL_APP_PASSWORD = 'mlkljfxmwrdkdoir'
+    const body = req.body || {};
+    const toEmail = (body.to_email ? String(body.to_email) : '').trim();
+    const fromEmail = (GMAIL_USER ? String(GMAIL_USER) : '').trim();
+    const status = body.status ? String(body.status) : 'Assigned';
+    const actionTitle = body.action_title ? String(body.action_title) : 'Action assigned to you';
+    const link = body.link ? String(body.link) : '';
+    const actionId = Number(body.action_id);
+    if (!toEmail || !toEmail.includes('@')) return res.status(400).json({ error: 'to_email is required' });
+    if (!fromEmail) return res.status(500).json({ error: 'mail not configured' });
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD }
+    });
+
+    const html = assignmentEmail({ actionTitle, status, link, assigneeEmail: toEmail, assignerName: 'ChannelGuru' });
+    const info = await transporter.sendMail({
+      from: fromEmail,
+      to: toEmail,
+      subject: `New assignment${actionTitle ? `: ${actionTitle}` : ''}`,
+      html
+    });
+    // Save owner_email to the action if provided
+    if (Number.isInteger(actionId)) {
+      try { await setActionOwnerEmail(actionId, toEmail); } catch (e) { console.warn('setActionOwnerEmail failed', e && e.message ? e.message : e); }
+    }
+    return res.json({ ok: true, messageId: info && info.messageId ? info.messageId : undefined });
+  } catch (err) {
+    console.error('sendAssignmentEmail error:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+module.exports.sendAssignmentEmail = sendAssignmentEmail;
+
+// postponeAction: PUT /api/v1/postponeAction?action_id=
+async function postponeAction(req, res) {
+  try {
+    const actionId = Number(req.query && req.query.action_id);
+    if (!Number.isInteger(actionId)) return res.status(400).json({ error: 'action_id must be an integer' });
+    const body = req.body || {};
+    const postponeDateStr = body.postpone_date ? String(body.postpone_date) : '';
+    // Basic ISO date validation (YYYY-MM-DD or full ISO)
+    const date = postponeDateStr ? new Date(postponeDateStr) : null;
+    if (!date || isNaN(date.getTime())) return res.status(400).json({ error: 'invalid postpone_date' });
+    const iso = date.toISOString().slice(0, 19).replace('T', ' ');
+    const ok = await updateActionStatusAndPostpone(actionId, 'Postponed', iso);
+    if (!ok) return res.status(404).json({ error: 'action not found' });
+    return res.json({ ok: true, action_id: actionId, action_status: 'Postponed', postpone_date: iso });
+  } catch (err) {
+    console.error('postponeAction error:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+module.exports.postponeAction = postponeAction;
+
+// setOwnerAcknowledged: PUT /api/v1/setOwnerAcknowledged?action_id=
+async function setOwnerAcknowledged(req, res) {
+  try {
+    const actionId = Number(req.query && req.query.action_id);
+    if (!Number.isInteger(actionId)) return res.status(400).json({ error: 'action_id must be an integer' });
+    const body = req.body || {};
+    const acknowledged = !!body.acknowledged;
+    const ok = await setActionOwnerAcknowledged(actionId, acknowledged);
+    if (!ok) return res.status(404).json({ error: 'action not found' });
+    return res.json({ ok: true, action_id: actionId, owner_acknowledged: acknowledged });
+  } catch (err) {
+    console.error('setOwnerAcknowledged error:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+module.exports.setOwnerAcknowledged = setOwnerAcknowledged;
+
+// setActionNotesApi: PUT /api/v1/setActionNotes?action_id=
+async function setActionNotesApi(req, res) {
+  try {
+    const actionId = Number(req.query && req.query.action_id);
+    if (!Number.isInteger(actionId)) return res.status(400).json({ error: 'action_id must be an integer' });
+    const body = req.body || {};
+    const notes = body && typeof body.notes === 'string' ? body.notes : '';
+    const ok = await setActionNotes(actionId, notes);
+    if (!ok) return res.status(404).json({ error: 'action not found' });
+    return res.json({ ok: true, action_id: actionId });
+  } catch (err) {
+    console.error('setActionNotes error:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+module.exports.setActionNotesApi = setActionNotesApi;
+
+// setActionStatusApi: PUT /api/v1/setActionStatus?action_id=
+async function setActionStatusApi(req, res) {
+  try {
+    const actionId = Number(req.query && req.query.action_id);
+    if (!Number.isInteger(actionId)) return res.status(400).json({ error: 'action_id must be an integer' });
+    const body = req.body || {};
+    const actionStatus = body && typeof body.action_status === 'string' ? body.action_status : '';
+    if (!actionStatus) return res.status(400).json({ error: 'action_status is required' });
+    const ok = await setActionStatus(actionId, actionStatus);
+    if (!ok) return res.status(404).json({ error: 'action not found' });
+    return res.json({ ok: true, action_id: actionId, action_status: actionStatus });
+  } catch (err) {
+    console.error('setActionStatus error:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+module.exports.setActionStatusApi = setActionStatusApi;

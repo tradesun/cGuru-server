@@ -50,6 +50,35 @@ async function findAllSubmissionsByEmail(email) {
 
 module.exports.findAllSubmissionsByEmail = findAllSubmissionsByEmail;
 
+// findLowestCategoriesForEmail: returns 5 lowest percent categories across all submissions
+async function findLowestCategoriesForEmail(email, limit = 5) {
+  const sql = `
+    WITH latest AS (
+      SELECT s.id AS submission_id, s.assessment_id
+      FROM (
+        SELECT s.*, ROW_NUMBER() OVER (
+          PARTITION BY s.assessment_id
+          ORDER BY s.finished_at DESC, s.id DESC
+        ) rn
+        FROM submissions s
+        WHERE s.email = ?
+      ) s
+      WHERE s.rn = 1
+    )
+    SELECT c.title, c.code AS category_code, c.id AS category_id, l.assessment_id, scs.percent AS min_percent
+    FROM latest l
+    JOIN submission_category_scores scs ON scs.submission_id = l.submission_id
+    JOIN categories c ON c.id = scs.category_id
+    WHERE (c.code IS NULL OR c.code NOT REGEXP '^[0-9]+(\\.[0-9]+)*$')
+    ORDER BY scs.percent ASC
+    LIMIT ?
+  `;
+  const [rows] = await pool.execute(sql, [email, Number(limit)]);
+  return rows;
+}
+
+module.exports.findLowestCategoriesForEmail = findLowestCategoriesForEmail;
+
 // findSubmissionByResultKey: header info for one submission
 async function findSubmissionByResultKey(resultKey) {
   const sql = `
@@ -75,23 +104,25 @@ async function findCategoryScoresBySubmissionId(submissionId) {
   return rows;
 }
 
-// findQuestionsAndAnswersWithCategory: questions/answers joined with mapping table
+// findQuestionsAndAnswersWithCategory: questions/answers joined with mapping table (questions table)
 async function findQuestionsAndAnswersWithCategory(submissionId, assessmentId) {
   const sql = `
     SELECT
-      sq.id AS submission_question_row_id,
-      sq.question_id,
-      sq.question_text,
+      q.id AS question_row_id,
+      q.question_id,
+      q.question_code,
+      q.question_text,
+      sa.id AS answer_row_id,
       sa.answer_text,
       qc.category_id
-    FROM submission_questions sq
-    JOIN submission_answers sa ON sa.submission_question_id = sq.id
+    FROM questions q
+    JOIN submission_answers sa ON sa.question_id = q.question_id AND sa.submission_id = ?
     LEFT JOIN question_categories qc
-      ON qc.assessment_id = ? AND qc.question_id = sq.question_id
-    WHERE sq.submission_id = ?
-    ORDER BY sq.id DESC, sa.id DESC
+      ON qc.assessment_id = ? AND qc.question_id = q.question_id
+    WHERE q.assessment_id = ?
+    ORDER BY CAST(REPLACE(q.question_code, '.', '') AS UNSIGNED) ASC, sa.id ASC
   `;
-  const [rows] = await pool.execute(sql, [assessmentId, submissionId]);
+  const [rows] = await pool.execute(sql, [submissionId, assessmentId, assessmentId]);
   return rows;
 }
 

@@ -17,6 +17,20 @@
   // Optional: base URL for taking assessments; replace with real URL if available
   const ASSESSMENT_TAKE_URL = '';
 
+  // Direct URLs for each assessment ID
+  const ASSESSMENT_TAKE_URLS = {
+    '1': 'https://channelguru-business-strategy-planning-assessment.scoreapp.com/',
+    '2': 'https://channelguru-oganisational-design-people-hr-assessment.scoreapp.com/',
+    '3': 'https://channelguru-finance-commercials-administration-assessment.scoreapp.com/',
+    '4': 'https://channelgurusolution-productisation.scoreapp.com/',
+    '5': 'https://channel-guru-go-to-market-demandgeneration-assessment.scoreapp.com/',
+    '6': 'https://channelguru-client-experience-success.scoreapp.com/',
+    '7': 'https://channelguru-advisory-governance-risk-compliance-assessment.scoreapp.com/',
+    '8': 'https://channelguruproject-change-services-assessment.scoreapp.com/',
+    '9': 'https://channelguru-scalable-centralised-services.scoreapp.com/',
+    '10': 'https://brad-eaqht1yp.scoreapp.com/'
+  };
+
   // Maturity stages configuration (shared across pages)
   const STAGES = [
     { range: '0–10%',  min: 0,  max: 10,  stage: 0, name: 'Awareness' },
@@ -27,7 +41,7 @@
     { range: '91–100%',min: 91, max: 100,stage: 5, name: 'Leading' }
   ];
 
-  window.Constants = { ASSESSMENT_TITLES, ASSESSMENT_TAKE_URL, STAGES };
+  window.Constants = { ASSESSMENT_TITLES, ASSESSMENT_TAKE_URL, ASSESSMENT_TAKE_URLS, STAGES };
 })();
 
 

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benchmarking Panel</title>
+    <style>
+        .benchmark-panel {
+  width: 1200px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: #2c3e50;
+  display: flex;
+  gap: 20px;
+}
+
+.inner-panel {
+  flex: 1;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  padding: 20px;
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.header-row h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0d1c2e;
+  margin: 0;
+}
+
+.expand-btn {
+  background: transparent;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #2c3e50;
+}
+
+.expand-btn:hover {
+  background: #f1f4f8;
+}
+
+.benchmark-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.compare-text {
+  color: #008080;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.benchmark-subtext {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.5;
+  margin: 6px 0 26px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  margin: 16px 0;
+}
+
+.bar-label {
+  width: 180px;
+  font-size: 14px;
+  color: #34495e;
+}
+
+.bar-container {
+  flex: 1;
+  background: #f7f9fb;
+  border-radius: 6px;
+  height: 26px;
+  margin-right: 16px;
+  position: relative;
+}
+
+.bar {
+  height: 100%;
+  border-radius: 6px;
+  text-align: right;
+  padding-right: 8px;
+  line-height: 26px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+}
+.bar-global {
+  background: #6c7a89;
+  width: 65%;
+}
+.bar-score {
+  background: #00a6a6;
+  width: 75%;
+}
+.bar-value {
+  min-width: 60px;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+.benchmark-footer {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 13px;
+  margin-top: 20px;
+  gap: 24px;
+  color: #34495e;
+}
+.highlight {
+  color: #00a6a6;
+  font-weight: bold;
+}
+
+ .sidebar-summary {
+   background: #f7f9fb;
+   border-radius: 8px;
+   padding: 12px 14px;
+   margin-top: 12px;
+ }
+ .sidebar-summary .item {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   font-size: 14px;
+   margin: 8px 0;
+ }
+ .sidebar-summary .label {
+   color: #34495e;
+ }
+ .sidebar-summary .value {
+   font-weight: 600;
+   color: #0d1c2e;
+ }
+ .sidebar-summary .value.highlight {
+   color: #00a6a6;
+ }
+ .benchmark-header h4 {
+    margin-bottom: -4px;
+}
+
+ </style>
+</head>
+
+<body>
+    <div class="benchmark-panel">
+
+        <div class="inner-panel" style="flex: 2;">
+            <div class="benchmark-header">
+                <h4>Benchmarking- Your Score vs Benchmark</h4> <span class="compare-text">+10% Ahead vs Global</span> </div>
+            <p class="benchmark-subtext">Compare your overall score with peers to understand where you stand at a glance.</p>
+            <div class="bar-row">
+                <div class="bar-label">Global Benchmark</div>
+                <div class="bar-container">
+                    <div class="bar bar-global"></div>
+                </div>
+                <div class="bar-value">65%</div>
+            </div>
+            <div class="bar-row">
+                <div class="bar-label">Your Score</div>
+                <div class="bar-container">
+                    <div class="bar bar-score"></div>
+                </div>
+                <div class="bar-value">75%</div>
+            </div>
+            
+        </div>
+    
+        <div class="inner-panel">
+            <div class="header-row">
+                <h2>How do You Compare</h2>
+                <button class="expand-btn">Expand</button>
+            </div>
+          <p style="font-size:14px;color:#555;line-height:1.5; margin-top: 7px;">Click Expand for category benchmarks.</p>
+            <div class="sidebar-summary">
+              <div class="item"><span class="label">Global Benchmark</span><span class="value">65%</span></div>
+              <div class="item"><span class="label">Your Score</span><span class="value">75%</span></div>
+              <div class="item"><span class="label">Status</span><span class="value highlight">+10% Ahead</span></div>
+            </div>
+        </div>
+   
+    
+    </div>
+</body>
+
+</html>

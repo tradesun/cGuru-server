@@ -31,19 +31,21 @@
             <div class="text-sm text-slate-600">Overall score</div>
             <div class="flex items-end gap-2 mt-1">
               <div id="overallPercent" class="text-4xl font-extrabold text-teal-600">--%</div>
-              <div id="overallTrend" class="text-xs text-emerald-600 hidden">+0% last 30 days</div>
+              <div id="overallTrend" class="text-xs text-emerald-600">+0% last 30 days</div>
             </div>
             <div class="mt-5 space-y-1 text-sm">
-              <div>Benchmark: <span id="overallBenchmark" class="font-semibold hidden">--%</span></div>
-              <div>Peers (ANZ MSPs): <span id="overallPeers" class="font-semibold hidden">--</span></div>
+              <div>Benchmark: <span id="overallBenchmark" class="font-semibold">64%</span></div>
+              <div>Peers (ANZ MSPs): <span id="overallPeers" class="font-semibold">61–72%</span></div>
               <div class="text-slate-500">Last update: <span id="overallUpdated">--</span></div>
             </div>
+            <button id="btnCompleteAssessment" class="button-primary button-rounded w-full mt-4">Complete Assessment</button>
+            <video id="overviewVideo" class="mt-4 w-full rounded-xl border" style="border-color:#E5E7EB" controls preload="metadata" src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"></video>
           </div>
         </div>
 
         <!-- Radar + category list -->
         <div class="lg:col-span-9 card card-lg shadow-sm">
-          <div class="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div class="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6" style="margin-top: 20px;">
             <div class="lg:col-span-6">
               <div class="text-sm font-semibold mb-2">Sub Categories</div>
               <ul id="categoryList" class="category-list space-y-2"></ul>
@@ -105,6 +107,16 @@
             <div id="actionTitle" class="text-sm text-slate-800 mb-2">—</div>
             <ul id="actionBullets" class="list-disc pl-5 text-sm text-slate-700 space-y-1 mb-4"></ul>
             <button id="addNextBtn" class="button-primary button-rounded px-4 py-2">Add to Next Steps</button>
+          </div>
+        </div>
+
+        <!-- Assessment-level Why and Tips panel -->
+        <div class="card card-lg shadow-sm mt-4">
+          <div class="p-5">
+            <div class="text-sm font-semibold">Why this matters</div>
+            <p id="assessWhyText" class="text-sm text-slate-700 mb-3">—</p>
+            <div class="text-sm font-semibold">Quick tips</div>
+            <ul id="assessQuickTips" class="list-disc pl-5 text-sm text-slate-700 space-y-1"></ul>
           </div>
         </div>
       </aside>

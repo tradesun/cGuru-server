@@ -2,7 +2,7 @@
 // Defines shared routes for webhooks and future REST endpoints.
 const express = require('express');
 const { ingest } = require('./controllers/webhook.controller');
-const { getTotalScores, submissionDetails, addAction, getRecommendations, getAllRecommendations, getRecommendationsForDetailsPage, reorderAction, removeAction } = require('./controllers/api.controller');
+const { getTotalScores, submissionDetails, addAction, getRecommendations, getAllRecommendations, getRecommendationsForDetailsPage, reorderAction, removeAction, systemRecommendations, updateProfile, sendAssignmentEmail, postponeAction, setOwnerAcknowledged, setActionNotesApi, setActionStatusApi } = require('./controllers/api.controller');
 
 const router = express.Router();
 
@@ -32,6 +32,27 @@ router.post('/api/v1/reorderAction', reorderAction);
 
 // PUT /api/v1/removeAction?action_id=
 router.put('/api/v1/removeAction', removeAction);
+
+// GET /api/v1/systemRecommendations?email=
+router.get('/api/v1/systemRecommendations', systemRecommendations);
+
+// POST /api/v1/updateProfile
+router.post('/api/v1/updateProfile', updateProfile);
+
+// POST /api/v1/sendAssignmentEmail
+router.post('/api/v1/sendAssignmentEmail', sendAssignmentEmail);
+
+// PUT /api/v1/postponeAction?action_id=
+router.put('/api/v1/postponeAction', postponeAction);
+
+// PUT /api/v1/setOwnerAcknowledged?action_id=
+router.put('/api/v1/setOwnerAcknowledged', setOwnerAcknowledged);
+
+// PUT /api/v1/setActionNotes?action_id=
+router.put('/api/v1/setActionNotes', setActionNotesApi);
+
+// PUT /api/v1/setActionStatus?action_id=
+router.put('/api/v1/setActionStatus', setActionStatusApi);
 
 module.exports = router;
 

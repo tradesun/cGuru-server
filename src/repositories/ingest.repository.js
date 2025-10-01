@@ -38,21 +38,25 @@ async function saveAll(normalized) {
     }
     if (!submissionId) throw new Error('Failed to resolve submission id');
 
-    // Refresh questions and answers (delete previous children for this submission)
-    await connection.execute('DELETE FROM submission_answers WHERE submission_question_id IN (SELECT id FROM submission_questions WHERE submission_id = ?)', [submissionId]);
-    await connection.execute('DELETE FROM submission_questions WHERE submission_id = ?', [submissionId]);
+    // Refresh answers for this submission
+    await connection.execute('DELETE FROM submission_answers WHERE submission_id = ?', [submissionId]);
 
-    // Insert questions and answers
+    // Insert answers, validating questions exist globally for this assessment
     for (const q of normalized.questions) {
-      const [qRes] = await connection.execute(
-        'INSERT INTO submission_questions (submission_id, question_id, question_text) VALUES (?, ?, ?)',
-        [submissionId, q.questionId, q.questionText]
+      // Validate question exists in questions table for this assessment
+      const [existsRows] = await connection.execute(
+        'SELECT 1 FROM questions WHERE assessment_id = ? AND question_id = ? LIMIT 1',
+        [s.assessmentId, q.questionId]
       );
-      const submissionQuestionId = qRes.insertId;
+      if (!existsRows || !existsRows[0]) {
+        const err = new Error('Unknown question_id for assessment');
+        err.status = 400;
+        throw err;
+      }
       for (const a of q.answers) {
         await connection.execute(
-          'INSERT INTO submission_answers (submission_question_id, answer_text) VALUES (?, ?)',
-          [submissionQuestionId, a]
+          'INSERT INTO submission_answers (submission_id, question_id, answer_text) VALUES (?, ?, ?)',
+          [submissionId, q.questionId, a]
         );
       }
     }

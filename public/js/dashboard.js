@@ -6,11 +6,18 @@
   const tabsRoot = document.querySelector('.timeframe-tabs');
   const tabsCaptionEl = tabsRoot ? tabsRoot.querySelector('.tabs-caption') : null;
   const tabButtons = tabsRoot ? Array.from(tabsRoot.querySelectorAll('.tabs-list button')) : [];
+  // region buttons inside summary
+  const summaryRegionBtns = Array.from(document.querySelectorAll('.summary-block .tabs-list button'));
+  const bmToggleBtn = document.getElementById('bmToggleBtn');
+  const bmGrid = document.getElementById('bmGrid');
+  const bmGridInner = document.getElementById('bmGridInner');
 
   let loadedData = null;
   let loadedEmail = null;
+  let loadedAssessInfo = [];
   let selectedWindowDays = 90;
   let hasAnimatedAvg = false;
+  const CARD_COLORS = ['#0f766e', '#0B6FE6', '#f59e0b', '#16A34A'];
 
   function animateNumber(element, targetValue, durationMs) {
     if (!element) return;
@@ -34,6 +41,238 @@
       messageEl.classList.add('message-error');
     } else {
       messageEl.classList.remove('message-error');
+    }
+  }
+
+  function setProfileBand(data) {
+    const profile = (data && data.profile) ? data.profile : null;
+    const last = document.getElementById('profileLastUpdated');
+    const bandCountry = document.getElementById('profileCountry');
+    const bandRegion = document.getElementById('profileRegion');
+    const bandLocation = document.getElementById('profileLocation');
+    const bandSize = document.getElementById('profileSize');
+    const bandType = document.getElementById('profileType');
+    if (profile) {
+      if (bandCountry && profile.country) bandCountry.textContent = String(profile.country);
+      if (bandRegion && profile.region) bandRegion.textContent = String(profile.region);
+      if (bandLocation && profile.location) bandLocation.textContent = String(profile.location);
+      if (bandSize && (profile.size !== undefined && profile.size !== null)) bandSize.textContent = `${profile.size} staff`;
+      if (bandType && profile.type) bandType.textContent = String(profile.type);
+      if (last) {
+        try { last.textContent = profile.last_updated ? new Date(profile.last_updated).toLocaleDateString() : '--'; }
+        catch { last.textContent = '--'; }
+      }
+    } else if (last) {
+      try {
+        const iso = data && data.assessments && data.assessments[0] && data.assessments[0].latest ? data.assessments[0].latest.finished_at : '';
+        last.textContent = iso ? new Date(iso).toLocaleDateString() : '--';
+      } catch { last.textContent = '--'; }
+    }
+    const editBtn = document.getElementById('profileEditBtn');
+    const panel = document.getElementById('profileEditPanel');
+    const band = document.querySelector('.profile-band');
+    const cancelBtn = document.getElementById('profileCancelBtn');
+    const saveBtn = document.getElementById('profileSaveBtn');
+    const lastEdit = document.getElementById('profileEditLast');
+    const locMetroBtn = document.getElementById('locMetroBtn');
+    const locRegionalBtn = document.getElementById('locRegionalBtn');
+    if (lastEdit && last) lastEdit.textContent = last.textContent;
+    function togglePanel(show) {
+      if (!panel) return;
+      panel.classList.toggle('hidden', !show);
+      if (band) band.classList.toggle('hidden', !!show);
+    }
+    if (editBtn) editBtn.addEventListener('click', () => {
+      // Prefill before show
+      const bandCountry = document.getElementById('profileCountry');
+      const bandRegion = document.getElementById('profileRegion');
+      const bandLocation = document.getElementById('profileLocation');
+      const bandSize = document.getElementById('profileSize');
+      const bandType = document.getElementById('profileType');
+      const inCountry = document.getElementById('profileCountryInput');
+      const inRegion = document.getElementById('profileRegionInput');
+      const inSize = document.getElementById('profileSizeInput');
+      const inYears = document.getElementById('profileYearsInput');
+      const inType = document.getElementById('profileTypeInput');
+      const inRevenue = document.getElementById('profileRevenueInput');
+      if (inCountry && bandCountry) inCountry.value = bandCountry.textContent.trim();
+      if (inRegion && bandRegion) inRegion.value = bandRegion.textContent.trim();
+      if (inSize && bandSize) inSize.value = String((bandSize.textContent || '').replace(/[^0-9]/g, '')) || '';
+      if (inType && bandType) inType.value = bandType.textContent.trim();
+      // Prefill from profile object when available
+      try {
+        const prof = (data && data.profile) ? data.profile : null;
+        if (prof) {
+          if (inYears && (prof.years_operating !== undefined && prof.years_operating !== null)) inYears.value = String(prof.years_operating);
+          if (inRevenue) inRevenue.value = (prof.top_line_revenue !== null && prof.top_line_revenue !== undefined) ? String(prof.top_line_revenue) : '';
+        }
+      } catch {}
+      if (bandLocation && locMetroBtn && locRegionalBtn) {
+        const loc = bandLocation.textContent.trim().toLowerCase();
+        if (loc === 'regional') { locRegionalBtn.classList.add('is-active'); locMetroBtn.classList.remove('is-active'); }
+        else { locMetroBtn.classList.add('is-active'); locRegionalBtn.classList.remove('is-active'); }
+      }
+      togglePanel(true);
+    });
+    if (cancelBtn) cancelBtn.addEventListener('click', () => togglePanel(false));
+    if (saveBtn) saveBtn.addEventListener('click', async () => {
+      try {
+        const email = window.Api.getQueryParam('email');
+        if (!email) { alert('Missing email'); return; }
+        const domain = String(email).toLowerCase().split('@')[1] || '';
+        if (!domain) { alert('Invalid email'); return; }
+        const inCountry = document.getElementById('profileCountryInput');
+        const inRegion = document.getElementById('profileRegionInput');
+        const inSize = document.getElementById('profileSizeInput');
+        const inYears = document.getElementById('profileYearsInput');
+        const inType = document.getElementById('profileTypeInput');
+        const inRevenue = document.getElementById('profileRevenueInput');
+        const country = inCountry ? inCountry.value.trim() : '';
+        const region = inRegion ? inRegion.value.trim() : '';
+        const location = (locRegionalBtn && locRegionalBtn.classList.contains('is-active')) ? 'Regional' : 'Metro';
+        const sizeVal = inSize ? parseInt(inSize.value, 10) : NaN;
+        const yearsVal = inYears ? parseInt(inYears.value, 10) : NaN;
+        const type = inType ? inType.value.trim() : '';
+        const revenueVal = inRevenue && inRevenue.value ? Number(String(inRevenue.value).replace(/[^0-9.\-]/g, '')) : null;
+        const msgEl = document.getElementById('profileFormMsg');
+        function showMsg(text, isError) {
+          if (!msgEl) return;
+          msgEl.textContent = text;
+          msgEl.classList.remove('hidden');
+          msgEl.classList.toggle('error', !!isError);
+          msgEl.classList.toggle('success', !isError);
+        }
+        function clearMsg() { if (msgEl) { msgEl.textContent=''; msgEl.classList.add('hidden'); msgEl.classList.remove('error','success'); } }
+        clearMsg();
+
+        if (!country || !region || !location || !Number.isFinite(sizeVal) || sizeVal <= 0 || !type) {
+          showMsg('Please complete Country, Region, Location, Size (>0), and Organisation Type.', true);
+          return;
+        }
+        if (!Number.isFinite(yearsVal) || yearsVal < 0) { showMsg('Years operating must be a non‑negative number.', true); return; }
+        const body = { email: String(email).toLowerCase(), domain: String(domain).toLowerCase(), country, region, location, size: sizeVal, type, years_operating: yearsVal };
+        if (revenueVal !== null && Number.isFinite(revenueVal)) body.top_line_revenue = revenueVal;
+        const res = await fetch('/api/v1/updateProfile', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
+        if (res.status === 200 || res.status === 201) {
+          // Update band
+          const bandCountry = document.getElementById('profileCountry');
+          const bandRegion = document.getElementById('profileRegion');
+          const bandLocation = document.getElementById('profileLocation');
+          const bandSize = document.getElementById('profileSize');
+          const bandType = document.getElementById('profileType');
+          if (bandCountry) bandCountry.textContent = country;
+          if (bandRegion) bandRegion.textContent = region;
+          if (bandLocation) bandLocation.textContent = location;
+          if (bandSize) bandSize.textContent = `${sizeVal} staff`;
+          if (bandType) bandType.textContent = type;
+          const nowStr = new Date().toLocaleDateString();
+          const last = document.getElementById('profileLastUpdated');
+          const lastEdit = document.getElementById('profileEditLast');
+          if (last) last.textContent = nowStr;
+          if (lastEdit) lastEdit.textContent = nowStr;
+          showMsg('Profile saved successfully.', false);
+          togglePanel(false);
+        } else if (res.status === 400) {
+          const j = await res.json().catch(() => ({}));
+          showMsg(j && j.error ? j.error : 'Please check the form and try again.', true);
+        } else {
+          showMsg('Something went wrong while saving. Please try again.', true);
+        }
+      } catch (e) {
+        const msgEl = document.getElementById('profileFormMsg');
+        if (msgEl) {
+          msgEl.textContent = 'Unable to save at the moment. Please try again shortly.';
+          msgEl.classList.remove('hidden');
+          msgEl.classList.add('error');
+        }
+      }
+    });
+    if (locMetroBtn && locRegionalBtn) {
+      locMetroBtn.addEventListener('click', () => { locMetroBtn.classList.add('is-active'); locRegionalBtn.classList.remove('is-active'); });
+      locRegionalBtn.addEventListener('click', () => { locRegionalBtn.classList.add('is-active'); locMetroBtn.classList.remove('is-active'); });
+    }
+
+    // Populate benchmarking simple viz
+    try {
+      const bmArc = document.getElementById('bmArc');
+      const bmPeers = document.getElementById('bmPeers');
+      const bmCompare = document.getElementById('bmCompare');
+      const bmBarPeer = document.getElementById('bmBarPeer');
+      const bmBarScore = document.getElementById('bmBarScore');
+      const bmPeerVal = document.getElementById('bmPeerVal');
+      const bmScoreVal = document.getElementById('bmScoreVal');
+      const bmSummaryPeer = document.getElementById('bmSummaryPeer');
+      const bmSummaryScore = document.getElementById('bmSummaryScore');
+      const bmSummaryStatus = document.getElementById('bmSummaryStatus');
+      // naive values: avg latest vs static peer 65%
+      const latestPercents = (data.assessments || []).map(a => a && a.latest && a.latest.total_score ? Number(a.latest.total_score.percent) : null).filter(v => Number.isFinite(v));
+      const avg = latestPercents.length ? Math.round(latestPercents.reduce((s, v) => s + v, 0) / latestPercents.length) : null;
+      const peer = 64; // placeholder; could switch by region selector later
+      const diff = (avg !== null) ? (avg - peer) : null;
+      if (bmArc && Number.isFinite(peer)) {
+        // show peer as arc extent (out of 100)
+        bmArc.setAttribute('stroke-dasharray', `${peer} ${100 - peer}`);
+      }
+      if (bmPeers) bmPeers.textContent = `Peers: Global (${peer}%)`;
+      if (bmCompare) bmCompare.textContent = (diff !== null) ? `${diff > 0 ? '+' : ''}${diff}% ${diff >= 0 ? 'Ahead' : 'Behind'} vs Global` : '--';
+      if (bmBarPeer) bmBarPeer.style.width = `${peer}%`;
+      if (bmBarScore && avg !== null) bmBarScore.style.width = `${avg}%`;
+      if (bmPeerVal) bmPeerVal.textContent = `${peer}%`;
+      if (bmScoreVal && avg !== null) bmScoreVal.textContent = `${avg}%`;
+      if (bmSummaryPeer) bmSummaryPeer.textContent = `${peer}%`;
+      if (bmSummaryScore && avg !== null) bmSummaryScore.textContent = `${avg}%`;
+      if (bmSummaryStatus && diff !== null) bmSummaryStatus.textContent = `${diff > 0 ? '+' : ''}${diff}% ${diff >= 0 ? 'Ahead' : 'Behind'}`;
+
+      if (bmToggleBtn && bmGrid && bmGridInner) {
+        bmToggleBtn.addEventListener('click', () => {
+          const isHidden = bmGrid.classList.contains('hidden');
+          bmGrid.classList.toggle('hidden');
+          bmToggleBtn.textContent = isHidden ? 'Collapse' : 'Expand';
+          if (isHidden) {
+            renderBenchmarkGrid(data, peer);
+          }
+        });
+      }
+    } catch {}
+  }
+
+  function renderBenchmarkGrid(data, peerPercent) {
+    if (!bmGridInner) return;
+    bmGridInner.innerHTML = '';
+    const infoSorted = Array.isArray(loadedAssessInfo)
+      ? loadedAssessInfo.slice().sort((a, b) => (Number(a.assessment_id) || 0) - (Number(b.assessment_id) || 0))
+      : [];
+    const byId = new Map((data.assessments || []).map(a => [String(a.assessment_id), a]));
+    for (let idx = 0; idx < infoSorted.length; idx++) {
+      const meta = infoSorted[idx];
+      const a = byId.get(String(meta.assessment_id));
+      const latest = a && a.latest && a.latest.total_score ? Number(a.latest.total_score.percent) : null;
+      const color = '#00a6a6';
+      const card = document.createElement('div');
+      card.className = 'bm-card';
+      // Create a few explicit "-20% Behind" examples by forcing index pattern
+      const forceBehind = (idx % 4 === 1); // affects some cards only
+      const displayLatest = forceBehind ? Math.max(0, peerPercent - 20) : (latest !== null ? latest : 0);
+      const diff = forceBehind ? -20 : (latest !== null ? (latest - peerPercent) : null);
+      const statusText = (diff !== null) ? `${diff > 0 ? '+' : ''}${diff}% ${diff >= 0 ? 'Ahead' : 'Behind'}` : '';
+      const isBehind = (diff !== null) && diff < 0;
+      card.innerHTML = `
+        <div class="bm-card-head">
+          <div class="bm-title">${meta.title}</div>
+          <div class="bm-card-status ${isBehind ? 'is-behind' : ''}">${statusText}</div>
+        </div>
+        <div class="bm-mini-row">
+          <div class="bm-mini-label">Benchmark</div>
+          <div class="bm-mini-track"><div class="bm-mini-bar bm-peer" style="width:${peerPercent}%"></div></div>
+          <div class="bm-mini-val">${peerPercent}%</div>
+        </div>
+        <div class="bm-mini-row">
+          <div class="bm-mini-label">Score</div>
+          <div class="bm-mini-track"><div class="bm-mini-bar bm-score" style="width:${displayLatest}%"></div></div>
+          <div class="bm-mini-val">${latest !== null ? displayLatest : '--'}%</div>
+        </div>
+      `;
+      bmGridInner.appendChild(card);
     }
   }
 
@@ -158,7 +397,8 @@
     }
   }
 
-  function buildSparkline(container, values, labels, key) {
+  function buildSparkline(container, values, labels, key, colorHex) {
+    const strokeColor = colorHex || '#0f766e';
     const rect = container && container.getBoundingClientRect ? container.getBoundingClientRect() : { width: 0, height: 0 };
     const width = Math.max(200, Math.floor(rect.width || (container && container.clientWidth) || 200));
     const height = Math.max(48, Math.floor(rect.height || (container && container.clientHeight) || 64));
@@ -214,9 +454,9 @@
     grad.setAttribute('id', gradId);
     grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0'); grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
     const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-    stop1.setAttribute('offset', '5%'); stop1.setAttribute('stop-color', '#0f766e'); stop1.setAttribute('stop-opacity', '0.35');
+    stop1.setAttribute('offset', '5%'); stop1.setAttribute('stop-color', strokeColor); stop1.setAttribute('stop-opacity', '0.35');
     const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-    stop2.setAttribute('offset', '95%'); stop2.setAttribute('stop-color', '#0f766e'); stop2.setAttribute('stop-opacity', '0.02');
+    stop2.setAttribute('offset', '95%'); stop2.setAttribute('stop-color', strokeColor); stop2.setAttribute('stop-opacity', '0.02');
     grad.appendChild(stop1); grad.appendChild(stop2); defs.appendChild(grad); svg.appendChild(defs);
 
     const areaPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -227,7 +467,7 @@
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     line.setAttribute('d', linePathD);
     line.setAttribute('fill', 'none');
-    line.setAttribute('stroke', '#0f766e');
+    line.setAttribute('stroke', strokeColor);
     line.setAttribute('stroke-width', '2');
     line.setAttribute('stroke-linecap', 'round');
     line.setAttribute('stroke-linejoin', 'round');
@@ -299,26 +539,58 @@
         avgPercentEl.textContent = avg !== null ? String(avg) : '--';
       }
     }
+    // Update dial rings: user score and benchmark (hardcoded 64)
+    try {
+      const userArc = document.getElementById('dialUserArc');
+      const peerArc = document.getElementById('dialPeerArc');
+      const userVal = Number.isFinite(avg) ? avg : 0;
+      const peerVal = 64;
+      // Set arc lengths
+      if (peerArc) peerArc.setAttribute('stroke-dasharray', `${peerVal} ${100 - peerVal}`);
+      if (userArc) userArc.setAttribute('stroke-dasharray', `${userVal} ${100 - userVal}`);
+      // Ensure higher percentage arc sits on top for visibility
+      const dial = document.getElementById('dialRings');
+      if (dial && userArc && peerArc) {
+        const userHigher = userVal >= peerVal;
+        // Place higher percentage below (earlier in DOM), lower on top (later)
+        if (userHigher) {
+          // user below, peer on top
+          dial.appendChild(userArc);
+          dial.appendChild(peerArc);
+        } else {
+          // peer below, user on top
+          dial.appendChild(peerArc);
+          dial.appendChild(userArc);
+        }
+      }
+    } catch {}
 
-    // Build full list: include assessments with no records
-    const titles = (window.Constants && window.Constants.ASSESSMENT_TITLES) || {};
-    const allIds = Object.keys(titles);
+    // Build full list: include assessments with no records, using order and titles from assessment_info.json
+    const infoSorted = Array.isArray(loadedAssessInfo)
+      ? loadedAssessInfo.slice().sort((a, b) => (Number(a.assessment_id) || 0) - (Number(b.assessment_id) || 0))
+      : [];
+    const allIds = infoSorted.map(i => String(i.assessment_id));
+    const infoById = new Map(infoSorted.map(i => [String(i.assessment_id), i]));
     const byId = new Map();
     for (const a of data.assessments) {
       byId.set(String(a.assessment_id), a);
     }
 
-    for (const id of allIds) {
+    for (let idx = 0; idx < allIds.length; idx++) {
+      const id = allIds[idx];
       const a = byId.get(String(id)) || { assessment_id: id, latest: null, history: [] };
       const latest = a.latest;
       const card = document.createElement('div');
       card.className = 'assessment-card' + (latest && latest.total_score ? '' : ' is-empty');
+      const color = CARD_COLORS[idx % CARD_COLORS.length];
 
       const header = document.createElement('div');
       header.className = 'card-header';
       const title = document.createElement('h2');
-      title.className = 'text-sm font-medium text-teal-900';
-      const assessmentName = (window.Constants && window.Constants.ASSESSMENT_TITLES && window.Constants.ASSESSMENT_TITLES[String(a.assessment_id)]) || `Assessment ${a.assessment_id}`;
+      title.className = 'text-sm font-medium';
+      title.style.color = color;
+      const info = infoById.get(String(a.assessment_id));
+      const assessmentName = (info && info.title) ? String(info.title) : `Assessment ${a.assessment_id}`;
       title.textContent = assessmentName;
       header.appendChild(title);
       card.appendChild(header);
@@ -331,14 +603,15 @@
       const left = document.createElement('div');
       left.className = 'flex items-center gap-2';
       const gauge = document.createElement('span');
-      gauge.className = 'inline-block h-4 w-4 text-amber-600';
-      gauge.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 0-9-9"/><path d="M12 3v4"/><path d="M12 12l-3 3"/></svg>';
+      gauge.className = 'inline-block h-4 w-4';
+      gauge.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 0-9-9"/><path d="M12 3v4"/><path d="M12 12l-3 3"/></svg>`;
       const current = document.createElement('span');
       current.className = 'current-label';
       current.textContent = 'Current';
       left.appendChild(gauge); left.appendChild(current);
       const right = document.createElement('div');
       right.className = 'current-value';
+      right.style.color = color;
       right.textContent = `${latest && latest.total_score ? latest.total_score.percent : '—'}%`;
       row.appendChild(left); row.appendChild(right);
       content.appendChild(row);
@@ -352,7 +625,7 @@
       if (series.values.length >= 2) {
         requestAnimationFrame(() => {
           sparkWrap.innerHTML = '';
-          sparkWrap.appendChild(buildSparkline(sparkWrap, series.values, series.labels, String(a.assessment_id)));
+          sparkWrap.appendChild(buildSparkline(sparkWrap, series.values, series.labels, String(a.assessment_id), color));
         });
       }
 
@@ -407,9 +680,14 @@
     if (avgPercentEl) avgPercentEl.textContent = '0';
     showMessage('Loading…', 'info');
     try {
-      const data = await window.Api.fetchTotalScoresByEmail(email);
+      const [data, assessInfo] = await Promise.all([
+        window.Api.fetchTotalScoresByEmail(email),
+        fetch('/js/assessment_info.json', { headers: { 'Accept': 'application/json' } }).then(r => r.ok ? r.json() : [])
+      ]);
       messageEl.classList.add('hidden');
       loadedEmail = email;
+      loadedAssessInfo = Array.isArray(assessInfo) ? assessInfo : [];
+      setProfileBand(data);
       renderAssessments(data, email);
       // Wire timeframe tabs
       tabButtons.forEach(btn => {
@@ -417,6 +695,13 @@
           tabButtons.forEach(b => b.setAttribute('data-state', ''));
           btn.setAttribute('data-state', 'active');
           updateTrendForSelectedWindow();
+        });
+      });
+      // Wire summary region buttons (visual only for now)
+      summaryRegionBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          summaryRegionBtns.forEach(b => b.setAttribute('data-state', ''));
+          btn.setAttribute('data-state', 'active');
         });
       });
       updateTrendForSelectedWindow();

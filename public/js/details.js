@@ -1,6 +1,7 @@
 (function() {
   let hasAnimatedChart = false;
   let hasAnimatedOverall = false;
+  let loadedAssessInfo = [];
 
   function animatePercent(element, targetPercent, durationMs) {
     if (!element) return;
@@ -37,6 +38,12 @@
     return res.json();
   }
 
+  async function fetchAssessmentInfo() {
+    const res = await fetch('/js/assessment_info.json', { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) return [];
+    try { return await res.json(); } catch { return []; }
+  }
+
   function renderOverview(data) {
     const title = qid('detailsTitle');
     const percent = qid('overallPercent');
@@ -44,10 +51,13 @@
     const trend = qid('overallTrend');
     const peers = qid('overallPeers');
     const benchmark = qid('overallBenchmark');
+    const completeBtn = qid('btnCompleteAssessment');
+    const videoEl = qid('overviewVideo');
 
     if (title) {
       const id = data && data.submission ? String(data.submission.assessment_id) : '';
-      const friendly = (window.Constants && window.Constants.ASSESSMENT_TITLES && window.Constants.ASSESSMENT_TITLES[id]) || (id ? `Assessment ${id}` : 'Assessment');
+      const info = Array.isArray(loadedAssessInfo) ? loadedAssessInfo.find(x => String(x.assessment_id) === id) : null;
+      const friendly = (info && info.title) ? String(info.title) : (id ? `Assessment ${id}` : 'Assessment');
       title.textContent = `${friendly} — Detailed Assessment`;
     }
     if (percent) {
@@ -64,10 +74,41 @@
       const iso = data && data.submission ? data.submission.finished_at : '';
       try { updated.textContent = new Date(iso).toLocaleDateString(); } catch { updated.textContent = iso || '--'; }
     }
-    // keep trend/benchmark/peers hidden; placeholders ready
-    trend && trend.classList.add('hidden');
-    peers && peers.classList.add('hidden');
-    benchmark && benchmark.classList.add('hidden');
+    // Show trend text if we can compute a simple last-30d delta from history if present
+    if (trend) {
+      // If the API later provides history here, we can compute; for now keep the static label
+      trend.textContent = '+0% last 30 days';
+    }
+
+    // Wire Complete Assessment button using per-assessment URLs map
+    if (completeBtn) {
+      completeBtn.onclick = () => {
+        const id = data && data.submission ? String(data.submission.assessment_id) : '';
+        const email = data && data.submission ? String(data.submission.email || '') : '';
+        const urls = (window.Constants && window.Constants.ASSESSMENT_TAKE_URLS) || {};
+        const direct = id && urls[id] ? urls[id] : '';
+        if (direct) {
+          const url = new URL(direct);
+          if (email) url.searchParams.set('email', email);
+          window.location.href = url.toString();
+          return;
+        }
+        // fallback to base if provided
+        const base = (window.Constants && window.Constants.ASSESSMENT_TAKE_URL) || '';
+        if (base && id) {
+          const url = new URL(base, window.location.origin);
+          url.searchParams.set('assessmentId', id);
+          if (email) url.searchParams.set('email', email);
+          window.location.href = url.toString();
+        }
+      };
+    }
+
+    // Set video source per assessment id
+    if (videoEl && data && data.submission && data.submission.assessment_id) {
+      const id = String(data.submission.assessment_id);
+      videoEl.src = `https://cguru-server.s3.ap-southeast-2.amazonaws.com/${id}.mp4`;
+    }
   }
 
   function renderCategories(data) {
@@ -266,17 +307,135 @@
 
     const qs = (data.questions || []).filter(q => String(q.category_id) === String(categoryId));
     qs.forEach(q => {
-      const { code, text } = extractCodeAndText(q.question_text);
-      const div = document.createElement('div');
-      div.className = 'p-5';
+      const code = q && q.question_code ? String(q.question_code) : '';
+      const text = q && q.question_text ? String(q.question_text) : '';
       const answers = Array.isArray(q.answers) ? q.answers.map(a => a && a.answer_text).filter(Boolean) : [];
-      div.innerHTML = `
-        <div class="md:max-w-[100%]">
-          <div class="text-xs text-slate-500 question_code">${code ? `Question ${code}` : ''}</div>
-          <div class="font-medium">${text}</div>
-          <div class="mt-1 text-sm text-slate-600">${answers.length ? answers.join('; ') : ''}</div>
-        </div>
-      `;
+      const div = document.createElement('div');
+      div.className = 'p-5 rounded-xl border mb-3 question-card';
+
+      // Determine stage for this question from its category
+      const cat = (data.categories || []).find(c => String(c.category_id) === String(categoryId)) || {};
+      const stageNum = (cat && (cat.stage || cat.stage === 0)) ? Number(cat.stage) : null;
+
+      // Top row: left code badge, right controls (stage pill + add button)
+      const topRow = document.createElement('div');
+      topRow.className = 'flex items-center justify-between gap-3 question-card-top';
+
+      const leftTop = document.createElement('div');
+      leftTop.className = 'question-card-left';
+      leftTop.innerHTML = `<span class="inline-block px-2 py-1 text-xs rounded-md bg-slate-100 text-slate-600 question_code_badge">${code ? `Question ${code}` : ''}</span>`;
+      topRow.appendChild(leftTop);
+
+      const rightTop = document.createElement('div');
+      rightTop.className = 'flex items-center gap-2 question-card-actions';
+      const stagePill = document.createElement('span');
+      stagePill.className = 'inline-block rounded-lg bg-sky-300 text-slate-900 px-4 py-1.5 text-sm font-semibold stage-pill';
+      stagePill.textContent = `Stage ${Number.isInteger(stageNum) ? stageNum : '—'}`;
+      rightTop.appendChild(stagePill);
+      // Add button (only if plan available) appended later after we know plan availability
+
+      topRow.appendChild(rightTop);
+      div.appendChild(topRow);
+
+      // Question text
+      const qtext = document.createElement('div');
+      qtext.className = 'mt-3 font-semibold leading-6 text-slate-900 question-text';
+      qtext.textContent = text;
+      div.appendChild(qtext);
+
+      // Body wrapper for plan details or user response
+      const bodyWrap = document.createElement('div');
+      bodyWrap.className = 'mt-3 question-card-body';
+
+      if (q && q.plan_available) {
+        // Plan available: show progression and benefit
+        const details = document.createElement('div');
+        details.className = 'text-sm text-slate-700 question-plan-details';
+        const nextStage = Number.isInteger(stageNum) ? stageNum + 1 : '…';
+        const progTitle = document.createElement('div');
+        progTitle.className = 'font-semibold text-slate-900 question-progression-title';
+        progTitle.textContent = `Stage ${Number.isInteger(stageNum) ? stageNum : '—'} \u2192 Stage ${nextStage}`;
+        const progBody = document.createElement('div');
+        progBody.className = 'mt-1 question-progression-body';
+        {
+          const raw = q && q.progression_comment ? String(q.progression_comment) : '';
+          let cleaned = raw;
+          if (Number.isInteger(stageNum)) {
+            const arrowSet = '(?:\\u2192|→|->)';
+            const prefixRe = new RegExp('^\\s*Stage\\s+' + stageNum + '\\s*' + arrowSet + '\\s*Stage\\s+' + nextStage + '\\s*(?:progression)?\\s*[:\\-–—]?\\s*', 'i');
+            cleaned = raw.replace(prefixRe, '').trim();
+          }
+          progBody.textContent = cleaned;
+        }
+        const benTitle = document.createElement('div');
+        benTitle.className = 'mt-3 font-semibold text-slate-900 question-benefit-title';
+        benTitle.textContent = 'The benefit';
+        const benBody = document.createElement('div');
+        benBody.className = 'mt-1 question-benefit-body';
+        benBody.textContent = q.benefit || '';
+        details.appendChild(progTitle);
+        details.appendChild(progBody);
+        details.appendChild(benTitle);
+        details.appendChild(benBody);
+        bodyWrap.appendChild(details);
+      } else {
+        // No plan available: show user's response instead
+        const respTitle = document.createElement('div');
+        respTitle.className = 'mt-3 font-semibold text-slate-900 text-sm';
+        respTitle.textContent = 'Your response';
+        const respBody = document.createElement('div');
+        respBody.className = 'mt-1 text-sm text-slate-700';
+        respBody.textContent = answers.length ? answers.join('; ') : '—';
+        bodyWrap.appendChild(respTitle);
+        bodyWrap.appendChild(respBody);
+      }
+
+      div.appendChild(bodyWrap);
+
+      // Add button (only if plan available) appended to rightTop
+      if (q && q.plan_available && code && Number.isInteger(stageNum)) {
+        const addedCodesQ = Array.isArray(data.added_actions) ? data.added_actions.map(String) : [];
+        const alreadyAddedQ = code && addedCodesQ.includes(String(code));
+        console.log('[details] question add/show check', { code, addedCodes: addedCodesQ, alreadyAddedQ });
+
+        const btn = document.createElement('button');
+        if (alreadyAddedQ) {
+          btn.textContent = 'Show Action >';
+          btn.className = 'button-plain text-xs add-next-btn';
+          btn.style.borderRadius = '6px';
+          btn.style.padding = '5px 10px';
+          btn.onclick = () => {
+            const email = currentEmail || getParam('email') || '';
+            const selCode = (cat && cat.code) ? String(cat.code) : '';
+            if (email) window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_category_code=${encodeURIComponent(selCode)}`;
+          };
+          rightTop.appendChild(btn);
+        } else {
+          btn.textContent = 'Add to Next Steps >';
+          btn.className = 'button-primary text-xs px-3 py-1.5 add-next-btn';
+          btn.onclick = async () => {
+          const email = currentEmail || getParam('email') || '';
+          if (!email) { alert('Missing email'); return; }
+          try {
+            const res = await fetch('/api/v1/add_action', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              body: JSON.stringify({ email, action_type: 'question', question_code: code, stage: Number(stageNum), category_id: String(categoryId), category_code: (cat && cat.code) ? String(cat.code) : null })
+            });
+            if (res.status === 409) { alert('Action already added'); return; }
+            if (!res.ok) {
+              const msg = await res.text().catch(() => '');
+              throw new Error(msg || `Request failed: ${res.status}`);
+            }
+            // Navigate to Next Steps, preselect this category
+            window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_category_code=${encodeURIComponent(cat && cat.code ? String(cat.code) : '')}`;
+          } catch (err) {
+            alert(`Failed to add action: ${err && err.message ? err.message : String(err)}`);
+          }
+          };
+          rightTop.appendChild(btn);
+        }
+      }
       container.appendChild(div);
     });
 
@@ -367,11 +526,32 @@
       return;
     }
     try {
-      const data = await fetchSubmissionDetails(resultKey);
+      const [data, assessInfo] = await Promise.all([
+        fetchSubmissionDetails(resultKey),
+        fetchAssessmentInfo()
+      ]);
+      loadedAssessInfo = Array.isArray(assessInfo) ? assessInfo : [];
       renderOverview(data);
       renderCategories(data);
       renderMaturityChart(data);
       wireCategorySelection(data);
+      // Render assessment-level Why and Quick tips
+      try {
+        const id = data && data.submission ? Number(data.submission.assessment_id) : NaN;
+        const info = Array.isArray(assessInfo) ? assessInfo.find(x => Number(x.assessment_id) === id) : null;
+        const whyEl = qid('assessWhyText');
+        const tipsEl = qid('assessQuickTips');
+        if (whyEl) whyEl.textContent = info && info['Why this matters'] ? String(info['Why this matters']) : '—';
+        if (tipsEl) {
+          tipsEl.innerHTML = '';
+          const tips = info && Array.isArray(info['Quick tips']) ? info['Quick tips'] : [];
+          tips.forEach(t => {
+            const li = document.createElement('li');
+            li.textContent = String(t);
+            tipsEl.appendChild(li);
+          });
+        }
+      } catch {}
     } catch (err) {
       alert(`Failed to load details: ${err && err.message ? err.message : String(err)}`);
     }
