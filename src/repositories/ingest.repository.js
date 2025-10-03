@@ -64,10 +64,19 @@ async function saveAll(normalized) {
     // Upsert categories and refresh submission category scores
     await connection.execute('DELETE FROM submission_category_scores WHERE submission_id = ?', [submissionId]);
     for (const cs of normalized.categoryScores) {
-      await connection.execute(
-        'INSERT INTO categories (id, title, code) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title)',
-        [cs.categoryId, cs.categoryTitle, null]
+      // Authoritative categories: ensure category exists; log and skip if missing
+      const [catExists] = await connection.execute(
+        'SELECT 1 FROM categories WHERE id = ? LIMIT 1',
+        [cs.categoryId]
       );
+      if (!catExists || !catExists[0]) {
+        console.warn('Ingest warning: unknown category_id for submission', {
+          submissionId,
+          categoryId: cs.categoryId,
+          categoryTitle: cs.categoryTitle
+        });
+        continue;
+      }
       await connection.execute(
         'INSERT INTO submission_category_scores (submission_id, category_id, percent, tier) VALUES (?, ?, ?, ?)',
         [submissionId, cs.categoryId, cs.percent, cs.tier]
