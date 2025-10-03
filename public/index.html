@@ -34,9 +34,16 @@
                 <div class="score-dial">
                   <!-- dual ring arcs -->
                   <svg id="dialRings" viewBox="0 0 42 42" width="160" height="160" class="absolute">
+                    <defs>
+                      <linearGradient id="dialUserGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#5FB0B7" />
+                        <stop offset="50%" stop-color="#278BFD" />
+                        <stop offset="100%" stop-color="#0003D9" />
+                      </linearGradient>
+                    </defs>
                     <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#e5e7eb" stroke-width="3" />
                     <circle id="dialPeerArc" cx="21" cy="21" r="15.915" fill="transparent" stroke="#6c7a89" stroke-width="3" stroke-linecap="round" stroke-dasharray="0 100" transform="rotate(-90 21 21)" />
-                    <circle id="dialUserArc" cx="21" cy="21" r="15.915" fill="transparent" stroke="#0f766e" stroke-width="3" stroke-linecap="round" stroke-dasharray="0 100" transform="rotate(-90 21 21)" />
+                    <circle id="dialUserArc" cx="21" cy="21" r="15.915" fill="transparent" stroke="url(#dialUserGrad)" stroke-width="3" stroke-linecap="round" stroke-dasharray="0 100" transform="rotate(-90 21 21)" />
                   </svg>
                   <div class="text-center z-10">
                     <div class="dial-title">Total Score</div>

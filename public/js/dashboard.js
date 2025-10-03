@@ -17,7 +17,7 @@
   let loadedAssessInfo = [];
   let selectedWindowDays = 90;
   let hasAnimatedAvg = false;
-  const CARD_COLORS = ['#0f766e', '#0B6FE6', '#f59e0b', '#16A34A'];
+  const CARD_COLORS = ['#278BFD', '#0B6FE6', '#f59e0b', '#16A34A'];
 
   function animateNumber(element, targetValue, durationMs) {
     if (!element) return;
@@ -398,7 +398,7 @@
   }
 
   function buildSparkline(container, values, labels, key, colorHex) {
-    const strokeColor = colorHex || '#0f766e';
+    const strokeColor = colorHex || '#278BFD';
     const rect = container && container.getBoundingClientRect ? container.getBoundingClientRect() : { width: 0, height: 0 };
     const width = Math.max(200, Math.floor(rect.width || (container && container.clientWidth) || 200));
     const height = Math.max(48, Math.floor(rect.height || (container && container.clientHeight) || 64));
@@ -477,7 +477,7 @@
     // Hover marker
     const marker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     marker.setAttribute('r', '3.5');
-    marker.setAttribute('fill', '#0f766e');
+    marker.setAttribute('fill', '#278BFD');
     marker.setAttribute('stroke', 'white');
     marker.setAttribute('stroke-width', '1');
     marker.style.visibility = 'hidden';

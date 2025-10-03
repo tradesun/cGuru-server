@@ -1,7 +1,7 @@
 /* Minimal component styles to reduce Tailwind utility noise while matching the template */
 
 /* Layout */
-.page-bg { min-height: 100vh; background-image: linear-gradient(to bottom, #f0fdfa, #ffffff, #ffffff); }
+.page-bg { min-height: 100vh; }
 .layout-container { max-width: 80rem; margin-left: auto; margin-right: auto; padding: 1.5rem; }
 @media (min-width: 768px) { .layout-container { padding: 2.5rem; } }
 
@@ -11,9 +11,9 @@
 .subtitle { color: rgba(19, 78, 74, 0.8); }
 
 /* Buttons */
-.button-outline { padding: 0.25rem 0.75rem; border: 1px solid rgba(245, 158, 11, 0.6); color: #92400e; background: white; border-radius: 0.375rem; }
+.button-outline { padding: 0.25rem 0.75rem; border: 1px solid #5FB0B7; color: #5FB0B7; background: white; border-radius: 0.375rem; }
 .button-outline:hover { background: #fffbeb; }
-.button-primary { padding: 0.25rem 0.75rem; border-radius: 0.375rem; color: #fff; background: #0f766e; }
+.button-primary { padding: 0.25rem 0.75rem; border-radius: 0.375rem; color: #fff; background: linear-gradient(90deg,rgba(95, 176, 183, 1) 0%, rgba(39, 139, 253, 1) 50%, rgba(0, 3, 217, 1) 100%); }
 .button-primary:hover { background: #0e665f; }
 .button-secondary { padding: 0.25rem 0.75rem; border: 1px solid #cbd5e1; color: #334155; background: #fff; border-radius: 1rem; }
 .button-secondary:hover { background: #f8fafc; }
@@ -59,7 +59,7 @@
     width: 200px;
 }
 
-.score-dial .dial-value { font-size: 3rem; font-weight: 700; color: #0f766e; z-index:1; }
+.score-dial .dial-value { font-size: 3rem; font-weight: 700; color: #278BFD; z-index:1; }
 
 .trend {
     position: absolute;
@@ -85,10 +85,10 @@ svg#dialRings { inset: 0; margin:auto; }
 
 /* Tabs */
 .timeframe-tabs { width: 100%; max-width: 340px; }
-.tabs-list { display: grid; grid-template-columns: 75px 70px 70px 120px 75px; gap: 0.5rem; background: #f0fdfa; padding: 0.25rem; border-radius: 0.375rem; }
+.tabs-list { display: grid; grid-template-columns: 75px 70px 70px 120px 75px; gap: 0.5rem; background: #5fb0b70f; padding: 0.25rem; border-radius: 0.375rem; }
 .tabs-list button { padding: 0.25rem 0.75rem; border-radius: 0.375rem; }
-.tabs-list button[data-state="active"] { background: #fff; color: #0f766e; }
-.tabs-caption { margin-top: 0.75rem; font-size: 0.75rem; color: rgba(13,148,136,0.7); }
+.tabs-list button[data-state="active"] { background: #fff; color: #278BFD; }
+.tabs-caption { margin-top: 0.75rem; font-size: 0.75rem; color: #5FB0B7;}
 
 /* Grid */
 .assessments-grid { display: grid; gap: 1.25rem; grid-template-columns: 1fr; }
@@ -106,9 +106,9 @@ svg#dialRings { inset: 0; margin:auto; }
 .current-value { font-size: 1.125rem; font-weight: 600; color: #115e59; }
 .meta-row { margin-top: 0.75rem; display: flex; align-items: center; justify-content: space-between; }
 .meta-text { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: rgba(13,148,136,0.7); }
-.cta { height: 2rem; padding: 0 0.5rem; color: #0f766e; border-radius: 0.375rem; background: transparent; }
+.cta { height: 2rem; padding: 0 0.5rem; color: #278BFD; border-radius: 0.375rem; background: transparent; }
 .cta:hover { color: #0e665f; background: #f0fdfa; }
-.cta.primary { background: #0f766e; color: #fff; }
+.cta.primary { background: #278BFD; color: #fff; }
 .cta.primary:hover { background: #0e665f; color: #fff; }
 
 /* Empty state tweaks */
@@ -148,7 +148,7 @@ svg#dialRings { inset: 0; margin:auto; }
 .profile-form-footer { margin-top:0.75rem; display:flex; align-items:center; justify-content:space-between; }
 .form-msg { margin-bottom:0.75rem; border-radius:0.75rem; padding:0.5rem 0.75rem; font-size:0.875rem; }
 .form-msg.error { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
-.form-msg.success { background:#ecfeff; border:1px solid #99f6e4; color:#0f766e; }
+.form-msg.success { background:#ecfeff; border:1px solid #99f6e4; color:#278BFD; }
 
 /* Benchmarking grid */
 .bm-grid { display:grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap:1rem; }
@@ -186,7 +186,7 @@ svg#dialRings { inset: 0; margin:auto; }
 .bm-row-track { flex:1; background:#f7f9fb; border-radius:6px; height:26px; position:relative; }
 .bm-row-bar { height:100%; border-radius:6px; }
 .bm-row-bar.bm-peer { background:#6c7a89; }
-.bm-row-bar.bm-score { background:#00a6a6; }
+.bm-row-bar.bm-score { background:linear-gradient(90deg,rgba(95, 176, 183, 1) 0%, rgba(39, 139, 253, 1) 50%, rgba(0, 3, 217, 1) 100%); }
 .bm-row-val { min-width:52px; text-align:left; font-size:14px; font-weight:600; color:#2c3e50; }
 .bm-right-head { display:flex; align-items:center; justify-content:space-between; }
 .bm-right-sub { font-size:14px; color:#555; line-height:1.5; margin-top:7px; }

@@ -65,8 +65,8 @@ async function saveAll(normalized) {
     await connection.execute('DELETE FROM submission_category_scores WHERE submission_id = ?', [submissionId]);
     for (const cs of normalized.categoryScores) {
       await connection.execute(
-        'INSERT INTO categories (id, title) VALUES (?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title)',
-        [cs.categoryId, cs.categoryTitle]
+        'INSERT INTO categories (id, title, code) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title)',
+        [cs.categoryId, cs.categoryTitle, null]
       );
       await connection.execute(
         'INSERT INTO submission_category_scores (submission_id, category_id, percent, tier) VALUES (?, ?, ?, ?)',
