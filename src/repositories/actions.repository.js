@@ -26,7 +26,7 @@ async function insertAction({ email, categoryCode, stage, listOrder, addedBy, ac
   const connection = conn || pool;
   const [result] = await connection.execute(
     'INSERT INTO actions (email, action_type, category_code, question_code, stage, list_order, added_by, action_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [email, 'category', categoryCode, null, stage, listOrder, addedBy || 'Manually added', actionStatus || 'Active']
+    [email, 'category', categoryCode, null, stage, listOrder, addedBy || 'My Action', actionStatus || 'Active']
   );
   return result.insertId;
 }
@@ -60,7 +60,10 @@ async function createAction({ email, categoryId, stage, actionType, questionCode
       }
       // Debug log
       console.log('[actions] createAction(question) incoming', { email, qCode, qStage, categoryId, categoryCode });
-      const [dupQ] = await connection.execute('SELECT id, action_type, category_code, question_code, stage FROM actions WHERE email = ? AND question_code = ? AND stage = ? LIMIT 1', [email, qCode, qStage]);
+      const [dupQ] = await connection.execute(
+        "SELECT id, action_type, category_code, question_code, stage, action_status FROM actions WHERE email = ? AND question_code = ? AND stage = ? AND (action_status IS NULL OR action_status NOT IN ('Deleted','Stage Changed')) LIMIT 1",
+        [email, qCode, qStage]
+      );
       if (dupQ && dupQ[0]) {
         console.log('[actions] duplicate question action found', dupQ[0]);
       }
@@ -79,7 +82,7 @@ async function createAction({ email, categoryId, stage, actionType, questionCode
       const listOrder = await getNextOrderForEmail(email, connection);
       const [res] = await connection.execute(
         'INSERT INTO actions (email, action_type, category_code, question_code, stage, list_order, added_by, action_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [email, 'question', derivedCategoryCode, qCode, qStage, listOrder, addedBy || 'Manually added', actionStatus || 'Active']
+        [email, 'question', derivedCategoryCode, qCode, qStage, listOrder, addedBy || 'My Action', actionStatus || 'Active']
       );
       id = res.insertId;
       await connection.commit();
@@ -91,8 +94,12 @@ async function createAction({ email, categoryId, stage, actionType, questionCode
         err.status = 400;
         throw err;
       }
-      const existingId = await findActionByEmailAndCode(email, categoryCode);
-      if (existingId) {
+      // Allow re-adding if previous category actions are Deleted or Stage Changed
+      const [dupCat] = await connection.execute(
+        "SELECT id, action_status FROM actions WHERE email = ? AND action_type = 'category' AND category_code = ? AND (action_status IS NULL OR action_status NOT IN ('Deleted','Stage Changed')) LIMIT 1",
+        [email, categoryCode]
+      );
+      if (dupCat && dupCat[0]) {
         const err = new Error('Action already added');
         err.status = 409;
         throw err;
@@ -100,7 +107,7 @@ async function createAction({ email, categoryId, stage, actionType, questionCode
       const listOrder = await getNextOrderForEmail(email, connection);
       const [res] = await connection.execute(
         'INSERT INTO actions (email, action_type, category_code, question_code, stage, list_order, added_by, action_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [email, 'category', categoryCode, null, stage, listOrder, addedBy || 'Manually added', actionStatus || 'Active']
+        [email, 'category', categoryCode, null, stage, listOrder, addedBy || 'My Action', actionStatus || 'Active']
       );
       id = res.insertId;
       await connection.commit();
@@ -137,9 +144,15 @@ module.exports = {
 // getActionsByEmail: list actions for an email ordered by list_order then id
 async function getActionsByEmail(email) {
   const [rows] = await pool.execute(
-    `SELECT a.id, a.email, a.action_type, a.category_code, a.question_code, a.stage, a.list_order, a.added_by, a.action_status, a.owner_email, a.owner_acknowledged, a.postpone_date, a.notes, c.title AS category_title
+    `SELECT a.id, a.email, a.action_type, a.category_code, a.question_code, a.stage, a.list_order, a.added_by, a.action_status, a.owner_email, a.owner_acknowledged, a.postpone_date, a.notes, a.log, a.invites, a.invites_count,
+            -- derive assessment_id via questions or category mapping
+            COALESCE(q.assessment_id,
+                     (SELECT MIN(qc.assessment_id) FROM question_categories qc WHERE qc.category_id = c.id)
+            ) AS assessment_id,
+            c.title AS category_title
      FROM actions a
-     LEFT JOIN categories c ON c.code = (a.category_code COLLATE utf16_general_ci)
+     LEFT JOIN categories c ON (c.code COLLATE utf8mb4_unicode_ci) = (CONVERT(a.category_code USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+     LEFT JOIN questions q ON (q.question_code COLLATE utf8mb4_unicode_ci) = (CONVERT(a.question_code USING utf8mb4) COLLATE utf8mb4_unicode_ci)
      WHERE a.email = ?
      ORDER BY a.list_order ASC, a.id ASC`,
     [email]
@@ -228,4 +241,44 @@ async function setActionStatus(actionId, actionStatus) {
 }
 
 module.exports.setActionStatus = setActionStatus;
+
+// appendActionLog: appends a line to the action.log field with a newline
+async function appendActionLog(actionId, line) {
+  const text = String(line || '').trim();
+  if (!text) return false;
+  const [res] = await pool.execute(
+    'UPDATE actions SET `log` = CONCAT(COALESCE(`log`, ""), ?) WHERE id = ?',
+    [text.endsWith('\n') ? text : text + '\n', actionId]
+  );
+  return res.affectedRows > 0;
+}
+
+module.exports.appendActionLog = appendActionLog;
+
+// getActionById: fetch a single action row
+async function getActionById(actionId) {
+  const [rows] = await pool.execute(
+    `SELECT a.id, a.email, a.action_type, a.category_code, a.question_code, a.stage, a.list_order, a.added_by, a.action_status, a.owner_email, a.owner_acknowledged, a.postpone_date, a.notes, a.log, a.invites, a.invites_count,
+            COALESCE(q.assessment_id,
+                     (SELECT MIN(qc.assessment_id) FROM question_categories qc WHERE qc.category_id = c.id)
+            ) AS assessment_id
+     FROM actions a
+     LEFT JOIN questions q ON (q.question_code COLLATE utf8mb4_unicode_ci) = (CONVERT(a.question_code USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+     LEFT JOIN categories c ON (c.code COLLATE utf8mb4_unicode_ci) = (CONVERT(a.category_code USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+     WHERE a.id = ?
+     LIMIT 1`,
+    [actionId]
+  );
+  return rows && rows[0] ? rows[0] : null;
+}
+
+module.exports.getActionById = getActionById;
+
+// setActionInvites: updates invites field (string) for an action
+async function setActionInvites(actionId, invites) {
+  const [res] = await pool.execute('UPDATE actions SET invites = ?, invites_count = COALESCE(invites_count,0) + 1 WHERE id = ?', [invites, actionId]);
+  return res.affectedRows > 0;
+}
+
+module.exports.setActionInvites = setActionInvites;
 

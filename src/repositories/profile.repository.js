@@ -10,8 +10,8 @@ async function getByDomain(domain) {
 async function insertProfile(p) {
   const sql = `
     INSERT INTO profile (
-      email, domain, country, region, location, size, type, years_operating, top_line_revenue, last_updated
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      email, domain, country, region, location, size, managers_beyond_ceo, type, years_operating, top_line_revenue, last_updated
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   const params = [
     p.email,
@@ -20,6 +20,7 @@ async function insertProfile(p) {
     p.region,
     p.location,
     p.size,
+    p.managers_beyond_ceo != null ? p.managers_beyond_ceo : null,
     p.type,
     p.years_operating,
     p.top_line_revenue != null ? p.top_line_revenue : null,
@@ -32,7 +33,7 @@ async function insertProfile(p) {
 async function updateByDomain(domain, p) {
   const sql = `
     UPDATE profile
-       SET email = ?, country = ?, region = ?, location = ?, size = ?, type = ?, years_operating = ?, top_line_revenue = ?, last_updated = ?
+       SET email = ?, country = ?, region = ?, location = ?, size = ?, managers_beyond_ceo = ?, type = ?, years_operating = ?, top_line_revenue = ?, last_updated = ?
      WHERE domain = ?
   `;
   const params = [
@@ -41,6 +42,7 @@ async function updateByDomain(domain, p) {
     p.region,
     p.location,
     p.size,
+    p.managers_beyond_ceo != null ? p.managers_beyond_ceo : null,
     p.type,
     p.years_operating,
     p.top_line_revenue != null ? p.top_line_revenue : null,

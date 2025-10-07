@@ -1,0 +1,264 @@
+<style>
+  .filter-bar {margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;  background: #fff; padding: 10px; border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.05); font-family: system-ui, sans-serif; }
+  .header-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+  .quick-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .clear-all { background: #ffffff; border: 1px solid #ccc; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; transition: 0.2s; }
+  .clear-all:hover { background: #e6e6e6; }
+
+  .filters-wrap { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; }
+  .filter { position: relative; }
+  .label { display: block; background: #f8f9fa; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; color: #333; font-weight: 500; border: 1px solid #e1e3e8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .label.active { background-color: #e0f0ff; border-color: #007bff; }
+
+  .options { display: none; position: absolute; top: calc(100% + 6px); left: 0; background: white; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); padding: 8px 6px; z-index: 10; min-width: 260px; }
+  .options.scrollable { max-height: 260px; overflow-y: auto; }
+  .options .clear-btn { display: block; width: 90%; margin: 4px auto 8px; padding: 6px; border: none; background: #f0f0f0; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .options .clear-btn:hover { background: #e0e0e0; }
+  .options label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; font-size: 14px; color: #333; }
+  .options label:hover { background: #f5f6fa; }
+
+  .chip { border: 1px solid #e1e3e8; background: #f8f9fa; border-radius: 16px; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: all 0.2s ease; }
+  .chip:hover { background: #e0e0e0; }
+  .chip.active { background: #007bff !important; color: white; border-color: #007bff; }
+
+  .selected-filters { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid #eee; margin-top: 6px; padding-top: 8px; min-height: 32px; align-items: center; }
+  .selected-group { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #555; }
+  .selected-chip { background: #007bff; color: white; border: none; border-radius: 14px; padding: 2px 8px; font-size: 11px; display: flex; align-items: center; gap: 4px; }
+  .selected-chip span { cursor: pointer; font-weight: bold; }
+  .selected-chip span:hover { color: #ffdddd; }
+</style>
+
+<div class="filter-bar">
+  <div class="header-row">
+    <div class="quick-filters">
+      <button class="chip" data-group="Due time">Overdue</button>
+      <button class="chip" data-group="Due time">Due this week</button>
+      <button class="chip" data-group="Ownership">Unassigned</button>
+      <button class="chip" data-group="Quick">Hide Suggested</button>
+      <button class="chip" data-group="Ownership">My Actions</button>
+    </div>
+    <button class="clear-all">Clear All</button>
+  </div>
+
+  <div class="filters-wrap">
+    <div class="filter" data-filter="priority">
+      <span class="label">Priority</span>
+      <div class="options">
+        <button class="clear-btn">Clear</button>
+        <label><input type="checkbox" value="High"> High</label>
+        <label><input type="checkbox" value="Medium"> Medium</label>
+        <label><input type="checkbox" value="Low"> Low</label>
+      </div>
+    </div>
+
+    <div class="filter" data-filter="ownership">
+      <span class="label">Ownership</span>
+      <div class="options">
+        <button class="clear-btn">Clear</button>
+        <label><input type="checkbox" value="Unassigned"> Unassigned</label>
+        <label><input type="checkbox" value="My Actions"> My Actions</label>
+        <label><input type="checkbox" value="email1@mail.com"> email1@mail.com</label>
+        <label><input type="checkbox" value="email2@mail.com"> email2@mail.com</label>
+        <label><input type="checkbox" value="email3@mail.com"> email3@mail.com</label>
+        <label><input type="checkbox" value="email4@mail.com"> email4@mail.com</label>
+        <label><input type="checkbox" value="email5@mail.com"> email5@mail.com</label>
+        <label><input type="checkbox" value="email6@mail.com"> email6@mail.com</label>
+        <label><input type="checkbox" value="email7@mail.com"> email7@mail.com</label>
+        <label><input type="checkbox" value="email8@mail.com"> email8@mail.com</label>
+        <label><input type="checkbox" value="email9@mail.com"> email9@mail.com</label>
+        <label><input type="checkbox" value="email10@mail.com"> email10@mail.com</label>
+      </div>
+    </div>
+
+    <div class="filter" data-filter="status">
+      <span class="label">Status</span>
+      <div class="options">
+        <button class="clear-btn">Clear</button>
+        <label><input type="checkbox" value="Not Assigned"> Not Assigned</label>
+        <label><input type="checkbox" value="Assigned"> Assigned</label>
+        <label><input type="checkbox" value="Acknowledged"> Acknowledged</label>
+        <label><input type="checkbox" value="Scheduled"> Scheduled</label>
+        <label><input type="checkbox" value="In Progress"> In Progress</label>
+        <label><input type="checkbox" value="Completed"> Completed</label>
+        <label><input type="checkbox" value="Overdue"> Overdue</label>
+      </div>
+    </div>
+
+    <div class="filter" data-filter="due time">
+      <span class="label">Due time</span>
+      <div class="options">
+        <button class="clear-btn">Clear</button>
+        <label><input type="checkbox" value="Overdue"> Overdue</label>
+        <label><input type="checkbox" value="Due today"> Due today</label>
+        <label><input type="checkbox" value="This week"> This week</label>
+        <label><input type="checkbox" value="Next 7 days"> Next 7 days</label>
+      </div>
+    </div>
+
+    <div class="filter" data-filter="assessment">
+      <span class="label">Assessment</span>
+      <div class="options scrollable">
+        <button class="clear-btn">Clear</button>
+        <label><input type="checkbox" value="Business Strategy & Planning"> Business Strategy & Planning</label>
+        <label><input type="checkbox" value="Organisational Design"> Organisational Design</label>
+        <label><input type="checkbox" value="People & HR"> People & HR</label>
+        <label><input type="checkbox" value="Finance"> Finance</label>
+        <label><input type="checkbox" value="Commercials & Administration"> Commercials & Administration</label>
+        <label><input type="checkbox" value="Operations"> Operations</label>
+        <label><input type="checkbox" value="Technology"> Technology</label>
+        <label><input type="checkbox" value="Marketing"> Marketing</label>
+        <label><input type="checkbox" value="Sales"> Sales</label>
+        <label><input type="checkbox" value="Leadership"> Leadership</label>
+        <label><input type="checkbox" value="Customer Success"> Customer Success</label>
+        <label><input type="checkbox" value="Innovation"> Innovation</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="selected-filters" aria-live="polite"></div>
+</div>
+
+<script>
+  (function(){
+    window.FilterBarInit = function() {
+      const root = document.querySelector('.filter-bar');
+      if (!root || root.__inited) return;
+      root.__inited = true;
+      console.log('[FilterBar] init start');
+      const selectedContainer = root.querySelector('.selected-filters');
+
+      function updateLabelCounts() {
+        root.querySelectorAll('.filter').forEach(filter => {
+          const label = filter.querySelector('.label');
+          const base = label?.textContent.split('(')[0].trim();
+          const count = filter.querySelectorAll('input[type="checkbox"]:checked').length;
+          label.textContent = count > 0 ? `${base} (${count})` : base;
+          label.classList.toggle('active', count > 0);
+        });
+      }
+
+      function syncQuickChips(value, checked) {
+        root.querySelectorAll('.chip').forEach(chip => {
+          if (chip.textContent.trim() === value && chip.dataset.group !== 'Quick') {
+            chip.classList.toggle('active', checked);
+          }
+        });
+      }
+
+      function updateSelectedFilters() {
+        if (!selectedContainer) return;
+        selectedContainer.innerHTML = '';
+        const groups = new Map();
+
+        root.querySelectorAll('.filter').forEach(filter => {
+          const labelEl = filter.querySelector('.label');
+          const base = labelEl.textContent.split('(')[0].trim();
+          const checked = filter.querySelectorAll('input[type="checkbox"]:checked');
+          if (checked.length) {
+            const entry = groups.get(base) || { items: [] };
+            checked.forEach(cb => entry.items.push({ item: cb, value: cb.value }));
+            groups.set(base, entry);
+          }
+        });
+
+        groups.forEach((entry, group) => {
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'selected-group';
+          const labelSpan = document.createElement('span');
+          labelSpan.textContent = `${group}:`;
+          groupDiv.appendChild(labelSpan);
+
+          entry.items.forEach(({ item, value }) => {
+            const chip = document.createElement('div');
+            chip.className = 'selected-chip';
+            chip.innerHTML = `${value} <span>×</span>`;
+            chip.querySelector('span').addEventListener('click', () => {
+              item.checked = false;
+              syncQuickChips(value, false);
+              updateSelectedFilters();
+              updateLabelCounts();
+              document.dispatchEvent(new CustomEvent('filterbar:changed'));
+            });
+            groupDiv.appendChild(chip);
+          });
+          selectedContainer.appendChild(groupDiv);
+        });
+        updateLabelCounts();
+      }
+
+      document.addEventListener('click', (e) => {
+        const labelEl = e.target.closest('.label');
+        if (labelEl && root.contains(labelEl)) {
+          console.log('[FilterBar] toggle dropdown for', labelEl.textContent);
+          const filter = labelEl.closest('.filter');
+          const options = filter.querySelector('.options');
+          const isOpen = options && options.style.display === 'block';
+          root.querySelectorAll('.options').forEach(opt => opt.style.display = 'none');
+          if (options) options.style.display = isOpen ? 'none' : 'block';
+          return;
+        }
+        if (!e.target.closest('.options')) {
+          root.querySelectorAll('.options').forEach(opt => opt.style.display = 'none');
+        }
+      });
+
+      root.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const chipText = chip.textContent.trim();
+          const group = chip.dataset.group;
+          chip.classList.toggle('active');
+          console.log('[FilterBar] chip toggle', chipText, 'active=', chip.classList.contains('active'));
+
+          if (group !== 'Quick') {
+            const filter = Array.from(root.querySelectorAll('.filter')).find(f => f.dataset.filter.toLowerCase() === group.toLowerCase());
+            if (filter) {
+              const desiredValue = (group.toLowerCase() === 'due time' && chipText.toLowerCase() === 'due this week') ? 'This week' : chipText;
+              const option = Array.from(filter.querySelectorAll('input[type="checkbox"]')).find(cb => cb.value === desiredValue);
+              if (option) {
+                option.checked = chip.classList.contains('active');
+              }
+            }
+          }
+          updateSelectedFilters();
+          document.dispatchEvent(new CustomEvent('filterbar:changed'));
+        });
+      });
+
+      root.addEventListener('change', e => {
+        if (e.target.matches('input[type="checkbox"]')) {
+          syncQuickChips(e.target.value, e.target.checked);
+          updateSelectedFilters();
+          console.log('[FilterBar] checkbox change', e.target.value, e.target.checked);
+          document.dispatchEvent(new CustomEvent('filterbar:changed'));
+        }
+      });
+
+      root.querySelectorAll('.clear-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const filter = e.target.closest('.filter');
+          filter.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.checked = false;
+            syncQuickChips(cb.value, false);
+          });
+          updateSelectedFilters();
+          console.log('[FilterBar] clear group');
+          document.dispatchEvent(new CustomEvent('filterbar:changed'));
+        });
+      });
+
+      const clearAll = root.querySelector('.clear-all');
+      if (clearAll) {
+        clearAll.addEventListener('click', () => {
+          root.querySelectorAll('.chip.active').forEach(c => c.classList.remove('active'));
+          root.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+          updateSelectedFilters();
+          console.log('[FilterBar] clear all');
+          document.dispatchEvent(new CustomEvent('filterbar:changed'));
+        });
+      }
+
+      updateSelectedFilters();
+      console.log('[FilterBar] init complete');
+    };
+  })();
+</script>

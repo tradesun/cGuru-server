@@ -114,19 +114,61 @@ async function findQuestionsAndAnswersWithCategory(submissionId, assessmentId) {
       q.question_text,
       sa.id AS answer_row_id,
       sa.answer_text,
-      qc.category_id
+      qc.category_id,
+      ans.stage AS answer_stage
     FROM questions q
     JOIN submission_answers sa ON sa.question_id = q.question_id AND sa.submission_id = ?
     LEFT JOIN question_categories qc
       ON qc.assessment_id = ? AND qc.question_id = q.question_id
+    LEFT JOIN answers ans
+      ON ans.question_code = q.question_code AND ans.answer = sa.answer_text
     WHERE q.assessment_id = ?
     ORDER BY CAST(REPLACE(q.question_code, '.', '') AS UNSIGNED) ASC, sa.id ASC
   `;
   const [rows] = await pool.execute(sql, [submissionId, assessmentId, assessmentId]);
+  // Debug rows to verify answer matching and origin
+  try {
+    const sample = rows.slice(0, 5).map(r => ({ code: r.question_code, ans: r.answer_text, matchStage: r.answer_stage })).slice(0, 5);
+    console.log('[read.repository] QA sample', { submissionId, assessmentId, sample });
+  } catch {}
   return rows;
 }
 
 module.exports.findSubmissionByResultKey = findSubmissionByResultKey;
 module.exports.findCategoryScoresBySubmissionId = findCategoryScoresBySubmissionId;
 module.exports.findQuestionsAndAnswersWithCategory = findQuestionsAndAnswersWithCategory;
+
+// findLatestQuestionStageByEmailAndCode: stage for a question based on the latest submission's answer
+async function findLatestQuestionStageByEmailAndCode(email, questionCode) {
+  const sql = `
+    SELECT ans.stage AS answer_stage
+    FROM questions q
+    JOIN submission_answers sa ON sa.question_id = q.question_id
+    JOIN submissions s ON s.id = sa.submission_id AND s.email = ?
+    LEFT JOIN answers ans ON ans.question_code = q.question_code AND ans.answer = sa.answer_text
+    WHERE q.question_code = ?
+    ORDER BY s.finished_at DESC, s.id DESC
+    LIMIT 1
+  `;
+  const [rows] = await pool.execute(sql, [email, questionCode]);
+  return rows && rows[0] && (rows[0].answer_stage || rows[0].answer_stage === 0) ? Number(rows[0].answer_stage) : null;
+}
+
+module.exports.findLatestQuestionStageByEmailAndCode = findLatestQuestionStageByEmailAndCode;
+
+// findLatestCategoryPercentByEmailAndCode: latest percent for a category code and email
+async function findLatestCategoryPercentByEmailAndCode(email, categoryCode) {
+  const sql = `
+    SELECT scs.percent
+    FROM submission_category_scores scs
+    JOIN submissions s ON s.id = scs.submission_id AND s.email = ?
+    JOIN categories c ON c.id = scs.category_id AND c.code = ?
+    ORDER BY s.finished_at DESC, s.id DESC
+    LIMIT 1
+  `;
+  const [rows] = await pool.execute(sql, [email, categoryCode]);
+  return rows && rows[0] && rows[0].percent != null ? Number(rows[0].percent) : null;
+}
+
+module.exports.findLatestCategoryPercentByEmailAndCode = findLatestCategoryPercentByEmailAndCode;
 

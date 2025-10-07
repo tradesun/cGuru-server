@@ -3,6 +3,7 @@
 const { normalize } = require('../score.service');
 const { saveAll } = require('../repositories/ingest.repository');
 const { writeSubmissionFiles } = require('../utils/payloadWriter');
+const { systemRecommendations } = require('./api.controller');
 
 // processSubmission: shared logic to normalize, persist, and write files
 async function processSubmission(payload, assessmentId, rawBodyBuffer) {
@@ -12,6 +13,17 @@ async function processSubmission(payload, assessmentId, rawBodyBuffer) {
     await writeSubmissionFiles(normalized.submission.externalId, rawBodyBuffer, assessmentId);
   } catch (e) {
     console.error('writeSubmissionFiles failed:', e);
+  }
+  // Trigger system recommendations generation for this user
+  try {
+    const email = normalized && normalized.submission && normalized.submission.email ? String(normalized.submission.email).toLowerCase().trim() : '';
+    if (email) {
+      // Call the same logic as the /systemRecommendations endpoint
+      await systemRecommendations({ query: { email } }, { json: () => {}, status: () => ({ json: () => {} }) });
+      console.log('[webhook] systemRecommendations triggered for', email);
+    }
+  } catch (e) {
+    console.warn('[webhook] systemRecommendations trigger failed', e && e.message ? e.message : e);
   }
   return submissionId;
 }

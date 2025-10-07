@@ -1,12 +1,15 @@
 // app.js 
 // Express bootstrap: CORS, JSON with raw body capture, shared routes, and server startup.
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
 const scoreRoutes = require('./src/score.routes');
 const { loadMockSubmissionsIfEnabled } = require('./src/mockLoader');
 const app = express();
 const port = 3000;
+
+// View engine: EJS for server-side includes/partials
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
 
 // CORS: allow all origins, methods, and common headers
 app.use((req, res, next) => {
@@ -25,6 +28,11 @@ app.use(express.json({
     req.rawBody = buf;
   }
 }));
+
+// Render next page via EJS so we can include partials
+app.get('/next.html', (req, res) => {
+  return res.render('next');
+});
 
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, 'public')));

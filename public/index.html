@@ -9,16 +9,28 @@
   </head>
   <body class="page-bg">
     <div class="layout-container space-y-6">
+      
+      <div class="fixed-menu-header">
+        <div class="fixed-menu-header-container">
+          <div class="fixed-menu-logo">
+            <img src="/images/CHG_Logo_200.png" alt="Tech Partner Assessment Dashboard" />
+          </div>
+          <div class="flex items-center gap-2 header-buttons">
+            <button id="btnRecalc" class="button-outline">Recalculate</button>
+              <button id="btnExport" class="button-primary">Export Report</button>
+            </div>
+          </div>
+      </div>
       <!-- Header -->
       <header class="header-bar">
-        <div>
+        <div class="header-bar-logo">
+           <img src="/images/TPOS_highres.png" alt="Tech Partner Assessment Dashboard" />
+        </div>
+        <div class="header-bar-text">
           <h1 class="title-main text-2xl md:text-3xl">Tech Partner Assessment Dashboard</h1>
           <p class="subtitle text-sm md:text-base mt-1">Your current maturity across 10 operating categories. Track progress and jump straight to your next recommended step.</p>
         </div>
-        <div class="flex items-center gap-2">
-          <button id="btnRecalc" class="button-outline">Recalculate</button>
-          <button id="btnExport" class="button-primary">Export Report</button>
-        </div>
+
       </header>
 
       <!-- Alerts / Messages -->
@@ -36,9 +48,8 @@
                   <svg id="dialRings" viewBox="0 0 42 42" width="160" height="160" class="absolute">
                     <defs>
                       <linearGradient id="dialUserGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stop-color="#5FB0B7" />
-                        <stop offset="50%" stop-color="#278BFD" />
-                        <stop offset="100%" stop-color="#0003D9" />
+                        <stop offset="50%" stop-color="#5BC8AF"></stop>
+                        <stop offset="100%" stop-color="#0003D9"></stop>
                       </linearGradient>
                     </defs>
                     <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#e5e7eb" stroke-width="3" />
@@ -62,17 +73,17 @@
                 <h2 class="summary-title">Operational efficiency trending up</h2>
                 <p class="summary-text">You’re progressing across most categories. Focus this month: <span class="font-medium">People & Org Design</span> and <span class="font-medium">Governance</span>. Quick wins in <span class="font-medium">Client Success</span> and <span class="font-medium">Support</span>.</p>
                 <div class="chips" style="display:flex;">
-                  <span class="chip">Benchmark: 64%</span>
-                  <span class="chip">Peers (Australia/NZ): 68%</span>
+                  <span class="chip">Benchmark: <span id="chipBenchmark">--%</span></span>
+                  <span class="chip">Peers (<span id="chipPeersRegionLabel">Global</span>): <span id="chipPeersRegionVal">--%</span></span>
                   <span class="chip">Last full assessment: 02 Sep 2025</span>
                 </div>
                 <!-- Region selector -->
                 <div class="mt-3" aria-label="Region selector">
                   <div class="tabs-list" style="max-width: 520px;">
-                    <button data-state="">Global</button>
+                    <button data-state="active">Global</button>
                     <button data-state="">US</button>
                     <button data-state="">UK</button>
-                    <button data-state="active">Australia/NZ</button>
+                    <button data-state="">Australia/NZ</button>
                     <button data-state="">Other</button>
                   </div>
                 </div>
@@ -122,13 +133,20 @@
         <div class="form-grid">
           <div class="field">
             <label class="label">Country</label>
-            <select id="profileCountryInput" class="input">
-              <option>Australia</option>
-              <option>New Zealand</option>
-              <option>United States</option>
-              <option>United Kingdom</option>
-              <option>Other</option>
-            </select>
+            <div id="profileCountrySelectWrap">
+              <select id="profileCountryInput" class="input">
+                <option>Australia</option>
+                <option>New Zealand</option>
+                <option>United States</option>
+                <option>United Kingdom</option>
+                <option>Other</option>
+              </select>
+              <div id="countryOtherWrap" class="mt-2 hidden">
+                <input id="profileCountryOtherInput" class="input" list="allCountriesList" placeholder="Select country" style="width:200px" />
+                <datalist id="allCountriesList"></datalist>
+              </div>
+              <span id="profileCountryOtherSpan" class="hidden">Other</span>
+            </div>
           </div>
           <div class="field">
             <label class="label">State / Region</label>
@@ -151,8 +169,19 @@
             </div>
           </div>
           <div class="field">
-            <label class="label">Organisation Size (staff)</label>
-            <input id="profileSizeInput" class="input" type="number" min="1" placeholder="25" />
+            <div style="display:flex; gap:12px; align-items:center;">
+
+              <div style="display:flex; flex-direction:column; gap:4px; min-width: 200px;">
+                <label class="label">Organisation Size (staff)</label>
+                <input id="profileSizeInput" class="input" type="number" min="1" placeholder="25" />
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:4px; min-width: 200px;">
+                <label class="label">Managers beyond CEO</label>
+                <input id="profileManagersInput" class="input" type="number" min="0" placeholder="2" />
+              </div>
+
+            </div>
           </div>
           <div class="field">
             <label class="label">Years Operating</label>
@@ -210,9 +239,9 @@
                 </div>
                
                 <div class="bm-summary">
-                  <div class="item"><span class="label">Global Benchmark</span><span id="bmSummaryPeer" class="value">--%</span></div>
-                  <div class="item"><span class="label">Your Score</span><span id="bmSummaryScore" class="value">--%</span></div>
-                  <div class="item"><span class="label">Status</span><span id="bmSummaryStatus" class="value highlight">—</span></div>
+                  <div class="item"><span class="label">How lean your management is vs. company size</span></div>
+                  <div class="item"><span class="label"><b>Your</b> <i> Manager Efficiency Factor</i></span><span id="bmSummaryYourMEFDiff" class="value" style="margin-right:8px;">—</span><span id="bmSummaryYourMEF" class="value">—</span></div>
+                  <div class="item"><span class="label"><b>Peers</b> <i>Manager Efficiency Factor</i></span><span id="bmSummaryPeerMEF" class="value">—</span></div>
                 </div>
               </div>
             </div>

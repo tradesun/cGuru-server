@@ -34,5 +34,19 @@ async function getQuestionPlanByCodeAndStage(questionCode, stage) {
 
 module.exports = { getRecommendationByCategoryAndStage, getQuestionPlanByCodeAndStage };
 
+// getResourcesByQuestionAndStage: list downloadable resources for a question/stage
+async function getResourcesByQuestionAndStage(questionCode, stage) {
+  const sql = `
+    SELECT document_code, question_code, stage, title, description, url
+    FROM resources
+    WHERE question_code = ? AND stage = ?
+    ORDER BY document_code ASC
+  `;
+  const [rows] = await pool.execute(sql, [questionCode, stage]);
+  return Array.isArray(rows) ? rows : [];
+}
+
+module.exports.getResourcesByQuestionAndStage = getResourcesByQuestionAndStage;
+
 
 

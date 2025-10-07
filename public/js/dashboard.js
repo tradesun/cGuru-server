@@ -17,7 +17,8 @@
   let loadedAssessInfo = [];
   let selectedWindowDays = 90;
   let hasAnimatedAvg = false;
-  const CARD_COLORS = ['#278BFD', '#0B6FE6', '#f59e0b', '#16A34A'];
+  let peersChipSet = false;
+  const CARD_COLORS = ['#5BC8AF','#439EDA', '#5FB0B7', '#278BFD']
 
   function animateNumber(element, targetValue, durationMs) {
     if (!element) return;
@@ -95,6 +96,7 @@
       const inYears = document.getElementById('profileYearsInput');
       const inType = document.getElementById('profileTypeInput');
       const inRevenue = document.getElementById('profileRevenueInput');
+      const inManagers = document.getElementById('profileManagersInput');
       if (inCountry && bandCountry) inCountry.value = bandCountry.textContent.trim();
       if (inRegion && bandRegion) inRegion.value = bandRegion.textContent.trim();
       if (inSize && bandSize) inSize.value = String((bandSize.textContent || '').replace(/[^0-9]/g, '')) || '';
@@ -104,6 +106,7 @@
         const prof = (data && data.profile) ? data.profile : null;
         if (prof) {
           if (inYears && (prof.years_operating !== undefined && prof.years_operating !== null)) inYears.value = String(prof.years_operating);
+          if (inManagers && (prof.managers_beyond_ceo !== undefined && prof.managers_beyond_ceo !== null)) inManagers.value = String(prof.managers_beyond_ceo);
           if (inRevenue) inRevenue.value = (prof.top_line_revenue !== null && prof.top_line_revenue !== undefined) ? String(prof.top_line_revenue) : '';
         }
       } catch {}
@@ -112,6 +115,23 @@
         if (loc === 'regional') { locRegionalBtn.classList.add('is-active'); locMetroBtn.classList.remove('is-active'); }
         else { locMetroBtn.classList.add('is-active'); locRegionalBtn.classList.remove('is-active'); }
       }
+      // Seed regions based on country selection
+      try {
+        const inCountry = document.getElementById('profileCountryInput');
+        const inRegion = document.getElementById('profileRegionInput');
+        const countryOtherWrap = document.getElementById('countryOtherWrap');
+        if (inCountry && inRegion) {
+          const isOther = String(inCountry.value).trim().toLowerCase() === 'other';
+          if (countryOtherWrap) countryOtherWrap.classList.toggle('hidden', !isOther);
+          inCountry.style.width = isOther ? '200px' : '';
+          if (!isOther) {
+            populateRegionsForCountry(inCountry.value, inRegion);
+          } else {
+            inRegion.disabled = true;
+            inRegion.innerHTML = '<option>—</option>';
+          }
+        }
+      } catch {}
       togglePanel(true);
     });
     if (cancelBtn) cancelBtn.addEventListener('click', () => togglePanel(false));
@@ -127,12 +147,14 @@
         const inYears = document.getElementById('profileYearsInput');
         const inType = document.getElementById('profileTypeInput');
         const inRevenue = document.getElementById('profileRevenueInput');
+        const inManagers = document.getElementById('profileManagersInput');
         const country = inCountry ? inCountry.value.trim() : '';
         const region = inRegion ? inRegion.value.trim() : '';
         const location = (locRegionalBtn && locRegionalBtn.classList.contains('is-active')) ? 'Regional' : 'Metro';
         const sizeVal = inSize ? parseInt(inSize.value, 10) : NaN;
         const yearsVal = inYears ? parseInt(inYears.value, 10) : NaN;
         const type = inType ? inType.value.trim() : '';
+        const managersVal = inManagers && inManagers.value !== '' ? parseInt(inManagers.value, 10) : null;
         const revenueVal = inRevenue && inRevenue.value ? Number(String(inRevenue.value).replace(/[^0-9.\-]/g, '')) : null;
         const msgEl = document.getElementById('profileFormMsg');
         function showMsg(text, isError) {
@@ -151,6 +173,7 @@
         }
         if (!Number.isFinite(yearsVal) || yearsVal < 0) { showMsg('Years operating must be a non‑negative number.', true); return; }
         const body = { email: String(email).toLowerCase(), domain: String(domain).toLowerCase(), country, region, location, size: sizeVal, type, years_operating: yearsVal };
+        if (managersVal !== null && Number.isFinite(managersVal) && managersVal >= 0) body.managers_beyond_ceo = managersVal;
         if (revenueVal !== null && Number.isFinite(revenueVal)) body.top_line_revenue = revenueVal;
         const res = await fetch('/api/v1/updateProfile', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
         if (res.status === 200 || res.status === 201) {
@@ -204,36 +227,206 @@
       const bmSummaryPeer = document.getElementById('bmSummaryPeer');
       const bmSummaryScore = document.getElementById('bmSummaryScore');
       const bmSummaryStatus = document.getElementById('bmSummaryStatus');
-      // naive values: avg latest vs static peer 65%
+      // Compute user average of latest per assessment
       const latestPercents = (data.assessments || []).map(a => a && a.latest && a.latest.total_score ? Number(a.latest.total_score.percent) : null).filter(v => Number.isFinite(v));
       const avg = latestPercents.length ? Math.round(latestPercents.reduce((s, v) => s + v, 0) / latestPercents.length) : null;
-      const peer = 64; // placeholder; could switch by region selector later
-      const diff = (avg !== null) ? (avg - peer) : null;
-      if (bmArc && Number.isFinite(peer)) {
-        // show peer as arc extent (out of 100)
-        bmArc.setAttribute('stroke-dasharray', `${peer} ${100 - peer}`);
+      // Determine size range from profile.size if possible (tiers e.g., 15-29, 30-49, etc.). For now, derive a simple band.
+      const profile = data && data.profile ? data.profile : null;
+      const sizeVal = profile && profile.size != null ? parseInt(String(profile.size), 10) : NaN;
+      function sizeToRange(val) {
+        if (!Number.isFinite(val)) return '';
+        if (val <= 4) return '1-4';           // Micro
+        if (val <= 9) return '5-9';           // Small
+        if (val <= 14) return '10-14';        // Growing
+        if (val <= 29) return '15-29';        // Mid-size
+        return '30-50';                       // Established (30–50 and above clamped here)
       }
-      if (bmPeers) bmPeers.textContent = `Peers: Global (${peer}%)`;
-      if (bmCompare) bmCompare.textContent = (diff !== null) ? `${diff > 0 ? '+' : ''}${diff}% ${diff >= 0 ? 'Ahead' : 'Behind'} vs Global` : '--';
-      if (bmBarPeer) bmBarPeer.style.width = `${peer}%`;
-      if (bmBarScore && avg !== null) bmBarScore.style.width = `${avg}%`;
-      if (bmPeerVal) bmPeerVal.textContent = `${peer}%`;
-      if (bmScoreVal && avg !== null) bmScoreVal.textContent = `${avg}%`;
-      if (bmSummaryPeer) bmSummaryPeer.textContent = `${peer}%`;
-      if (bmSummaryScore && avg !== null) bmSummaryScore.textContent = `${avg}%`;
-      if (bmSummaryStatus && diff !== null) bmSummaryStatus.textContent = `${diff > 0 ? '+' : ''}${diff}% ${diff >= 0 ? 'Ahead' : 'Behind'}`;
+      const sizeRange = sizeToRange(sizeVal);
+      // Determine peer scope from active region button (Global/US/UK/Australia/NZ)
+      function getSelectedRegionMap() {
+        try {
+          const btns = Array.from(document.querySelectorAll('.summary-block .tabs-list button'));
+          const active = btns.find(b => b.getAttribute('data-state') === 'active');
+          const label = active && active.textContent ? active.textContent.trim() : 'Global';
+          if (label === 'US') return { type: 'single', country: 'United States', label: 'United States' };
+          if (label === 'UK') return { type: 'single', country: 'United Kingdom', label: 'United Kingdom' };
+          if (label.toLowerCase().includes('australia')) return { type: 'multi', countries: ['Australia','New Zealand'], label: 'Australia/NZ' };
+          return { type: 'global', label: 'Global' };
+        } catch { return { type: 'global', label: 'Global' }; }
+      }
+      const regionMap = getSelectedRegionMap();
+      // Fetch peer average and render
+      let currentPeer = null;
+      const scopeLabel = regionMap.label || 'Global';
+      function renderPeer(peer) {
+        const isFinitePeer = Number.isFinite(peer);
+        const diff = (avg !== null && isFinitePeer) ? (avg - peer) : null;
+        if (bmArc && isFinitePeer) {
+          bmArc.setAttribute('stroke-dasharray', `${peer} ${100 - peer}`);
+        }
+        if (bmPeers) bmPeers.textContent = isFinitePeer ? `Peers: ${scopeLabel} (${peer}%)` : `Peers: ${scopeLabel} (—%)`;
+        if (bmCompare) {
+          bmCompare.textContent = (diff !== null) ? `${diff > 0 ? '+' : ''}${diff}% ${diff >= 0 ? 'Ahead' : 'Behind'} vs ${scopeLabel}` : '--';
+          if (diff !== null) {
+            bmCompare.style.color = diff > 0 ? '#16a34a' : (diff < 0 ? '#b91c1c' : '')
+          } else {
+            bmCompare.style.color = '';
+          }
+        }
+        if (bmBarPeer) bmBarPeer.style.width = isFinitePeer ? `${peer}%` : '0%';
+        if (bmBarScore && avg !== null) bmBarScore.style.width = `${avg}%`;
+        if (bmPeerVal) bmPeerVal.textContent = isFinitePeer ? `${peer}%` : '–';
+        const chip = document.getElementById('chipBenchmark');
+        if (chip) chip.textContent = isFinitePeer ? `${peer}%` : '–';
+        // Set peers chip only once on first render to lock to user's region
+        if (!peersChipSet) {
+          const chipPeersLabel = document.getElementById('chipPeersRegionLabel');
+          const chipPeersVal = document.getElementById('chipPeersRegionVal');
+          if (chipPeersLabel) chipPeersLabel.textContent = scopeLabel;
+          if (chipPeersVal) chipPeersVal.textContent = isFinitePeer ? `${peer}%` : '–';
+          peersChipSet = true;
+        }
+        if (bmScoreVal && avg !== null) bmScoreVal.textContent = `${avg}%`;
+        if (bmSummaryPeer) bmSummaryPeer.textContent = isFinitePeer ? `${peer}%` : '–';
+        if (bmSummaryScore && avg !== null) bmSummaryScore.textContent = `${avg}%`;
+        if (bmSummaryStatus) bmSummaryStatus.textContent = (diff !== null) ? `${diff > 0 ? '+' : ''}${diff}% ${diff >= 0 ? 'Ahead' : 'Behind'}` : '–';
+        // If grid is expanded, re-render with new peer
+        if (bmGrid && !bmGrid.classList.contains('hidden')) {
+          renderBenchmarkGrid(data, isFinitePeer ? peer : 0);
+        }
+        // Update dial peer arc and stacking with user arc
+        try {
+          const userArc = document.getElementById('dialUserArc');
+          const peerArc = document.getElementById('dialPeerArc');
+          if (peerArc) {
+            if (isFinitePeer) {
+              peerArc.style.display = '';
+              peerArc.setAttribute('stroke-dasharray', `${peer} ${100 - peer}`);
+            } else {
+              peerArc.style.display = 'none';
+            }
+          }
+          const dial = document.getElementById('dialRings');
+          const userVal = Number.isFinite(avg) ? avg : 0;
+          if (dial && userArc && peerArc && isFinitePeer) {
+            const userHigher = userVal >= peer;
+            if (userHigher) { dial.appendChild(userArc); dial.appendChild(peerArc); }
+            else { dial.appendChild(peerArc); dial.appendChild(userArc); }
+          }
+        } catch {}
+      }
+      function fetchPeerPromise() {
+        if (regionMap.type === 'global') {
+          return window.Api.fetchBenchmarkAverage(sizeRange, '');
+        }
+        if (regionMap.type === 'single') {
+          return window.Api.fetchBenchmarkAverage(sizeRange, regionMap.country);
+        }
+        const p1 = window.Api.fetchBenchmarkAverage(sizeRange, regionMap.countries[0]).catch(() => null);
+        const p2 = window.Api.fetchBenchmarkAverage(sizeRange, regionMap.countries[1]).catch(() => null);
+        return Promise.all([p1, p2]).then(([r1, r2]) => {
+          const a1 = r1 && r1.avg_total_score_percent != null ? Number(r1.avg_total_score_percent) : null;
+          const c1 = r1 && r1.users_count != null ? Number(r1.users_count) : 0;
+          const a2 = r2 && r2.avg_total_score_percent != null ? Number(r2.avg_total_score_percent) : null;
+          const c2 = r2 && r2.users_count != null ? Number(r2.users_count) : 0;
+          const denom = c1 + c2;
+          const num = (Number.isFinite(a1) ? a1 * c1 : 0) + (Number.isFinite(a2) ? a2 * c2 : 0);
+          const avg = denom > 0 ? Math.round(num / denom) : null;
+          return { avg_total_score_percent: avg, users_count: denom };
+        });
+      }
+      fetchPeerPromise()
+        .then(peerResp => {
+          currentPeer = (peerResp && peerResp.avg_total_score_percent != null) ? Math.round(Number(peerResp.avg_total_score_percent)) : null;
+          // Update MEF summary if present in response
+          try {
+            const yourMEF = (() => {
+              const prof = (data && data.profile) ? data.profile : null;
+              const size = prof && prof.size != null ? Number(prof.size) : null;
+              const mgr = prof && prof.managers_beyond_ceo != null ? Number(prof.managers_beyond_ceo) : null;
+              if (Number.isFinite(size) && size > 0 && Number.isFinite(mgr) && mgr >= 0) return (mgr / size);
+              return null;
+            })();
+            const peerMEF = peerResp && peerResp.avg_mef != null ? Number(peerResp.avg_mef) : null;
+            const yourMEFEl = document.getElementById('bmSummaryYourMEF');
+            const peerMEFEl = document.getElementById('bmSummaryPeerMEF');
+            const diffEl = document.getElementById('bmSummaryYourMEFDiff');
+            if (yourMEFEl) yourMEFEl.textContent = Number.isFinite(yourMEF) ? yourMEF.toFixed(3) : '—';
+            if (peerMEFEl) peerMEFEl.textContent = Number.isFinite(peerMEF) ? peerMEF.toFixed(3) : '—';
+            if (diffEl) {
+              // Clear previous state
+              diffEl.classList.remove('diff-up','diff-down');
+              if (yourMEFEl) yourMEFEl.classList.remove('diff-up','diff-down');
+              if (Number.isFinite(yourMEF) && Number.isFinite(peerMEF)) {
+                const pct = peerMEF === 0 ? 0 : ((yourMEF - peerMEF) / peerMEF) * 100;
+                const sign = pct > 0 ? '+' : '';
+                // Up icon as provided; down = same rotated 180deg
+                const upIcon = '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"></path><path d="M14 7h7v7"></path></svg>';
+                const downIcon = '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(180deg);"><path d="M3 17l6-6 4 4 8-8"></path><path d="M14 7h7v7"></path></svg>';
+                const isWorse = pct > 0; // higher MEF than peers = worse (red)
+                diffEl.innerHTML = `${isWorse ? upIcon : downIcon} ${sign}${Math.abs(pct).toFixed(0)}%`;
+                diffEl.classList.add(isWorse ? 'diff-down' : 'diff-up');
+                if (yourMEFEl) yourMEFEl.classList.add(isWorse ? 'diff-down' : 'diff-up');
+                // Inline color (mirror classes): red if worse, green if better
+                diffEl.style.color = isWorse ? '#b91c1c' : '#16a34a';
+                if (yourMEFEl) yourMEFEl.style.color = isWorse ? '#b91c1c' : '#16a34a';
+              } else {
+                diffEl.textContent = '—';
+                diffEl.style.color = '';
+                if (yourMEFEl) yourMEFEl.style.color = '';
+              }
+            }
+          } catch {}
+          renderPeer(currentPeer);
+        })
+        .catch(() => { renderPeer(null); });
 
       if (bmToggleBtn && bmGrid && bmGridInner) {
         bmToggleBtn.addEventListener('click', () => {
-          const isHidden = bmGrid.classList.contains('hidden');
+          const wasHidden = bmGrid.classList.contains('hidden');
           bmGrid.classList.toggle('hidden');
-          bmToggleBtn.textContent = isHidden ? 'Collapse' : 'Expand';
-          if (isHidden) {
-            renderBenchmarkGrid(data, peer);
+          bmToggleBtn.textContent = wasHidden ? 'Collapse' : 'Expand';
+          if (wasHidden) {
+            // Fetch per-assessment peers using same size/region mapping
+            function fetchAssessPeersPromise() {
+              return window.Api.fetchAssessmentPeerAverages(sizeRange, '');
+            }
+            fetchAssessPeersPromise().then(resp => {
+              const peersByAssess = new Map();
+              const rows = resp && Array.isArray(resp.items) ? resp.items : [];
+              for (const r of rows) {
+                peersByAssess.set(String(r.assessment_id), Number(r.avg_total_score_percent));
+              }
+              renderBenchmarkGridWithPeers(data, peersByAssess);
+            }).catch(() => {
+              renderBenchmarkGridWithPeers(data, new Map());
+            });
           }
         });
       }
     } catch {}
+  }
+
+  function populateRegionsForCountry(country, regionSelect) {
+    if (!regionSelect) return;
+    const regionsMap = (window.Constants && window.Constants.COUNTRY_REGIONS) || {};
+    const isOther = String(country).trim().toLowerCase() === 'other';
+    const list = regionsMap[country] || [];
+    regionSelect.innerHTML = '';
+    if (isOther) {
+      regionSelect.disabled = true;
+      const opt = document.createElement('option');
+      opt.textContent = '—';
+      regionSelect.appendChild(opt);
+      return;
+    }
+    regionSelect.disabled = false;
+    for (const r of list) {
+      const opt = document.createElement('option');
+      opt.value = r;
+      opt.textContent = r;
+      regionSelect.appendChild(opt);
+    }
   }
 
   function renderBenchmarkGrid(data, peerPercent) {
@@ -265,6 +458,46 @@
           <div class="bm-mini-label">Benchmark</div>
           <div class="bm-mini-track"><div class="bm-mini-bar bm-peer" style="width:${peerPercent}%"></div></div>
           <div class="bm-mini-val">${peerPercent}%</div>
+        </div>
+        <div class="bm-mini-row">
+          <div class="bm-mini-label">Score</div>
+          <div class="bm-mini-track"><div class="bm-mini-bar bm-score" style="width:${displayLatest}%"></div></div>
+          <div class="bm-mini-val">${latest !== null ? displayLatest : '--'}%</div>
+        </div>
+      `;
+      bmGridInner.appendChild(card);
+    }
+  }
+
+  function renderBenchmarkGridWithPeers(data, peersByAssess) {
+    if (!bmGridInner) return;
+    bmGridInner.innerHTML = '';
+    const infoSorted = Array.isArray(loadedAssessInfo)
+      ? loadedAssessInfo.slice().sort((a, b) => (Number(a.assessment_id) || 0) - (Number(b.assessment_id) || 0))
+      : [];
+    const byId = new Map((data.assessments || []).map(a => [String(a.assessment_id), a]));
+    for (let idx = 0; idx < infoSorted.length; idx++) {
+      const meta = infoSorted[idx];
+      const a = byId.get(String(meta.assessment_id));
+      const latest = a && a.latest && a.latest.total_score ? Number(a.latest.total_score.percent) : null;
+      const peer = peersByAssess.has(String(meta.assessment_id)) ? Number(peersByAssess.get(String(meta.assessment_id))) : null;
+      const card = document.createElement('div');
+      card.className = 'bm-card';
+      const diff = (latest !== null && Number.isFinite(peer)) ? (latest - peer) : null;
+      const statusText = (diff !== null) ? `${diff > 0 ? '+' : ''}${diff}% ${diff >= 0 ? 'Ahead' : 'Behind'}` : '';
+      const isBehind = (diff !== null) && diff < 0;
+      const peerWidth = Number.isFinite(peer) ? `${peer}%` : '0%';
+      const peerValText = Number.isFinite(peer) ? `${peer}%` : '—';
+      const displayLatest = latest !== null ? latest : 0;
+      card.innerHTML = `
+        <div class="bm-card-head">
+          <div class="bm-title">${meta.title}</div>
+          <div class="bm-card-status ${isBehind ? 'is-behind' : ''}">${statusText}</div>
+        </div>
+        <div class="bm-mini-row">
+          <div class="bm-mini-label">Benchmark</div>
+          <div class="bm-mini-track"><div class="bm-mini-bar bm-peer" style="width:${peerWidth}"></div></div>
+          <div class="bm-mini-val">${peerValText}</div>
         </div>
         <div class="bm-mini-row">
           <div class="bm-mini-label">Score</div>
@@ -387,9 +620,24 @@
     const delta = computeAverageTrendDelta(loadedData, days);
     selectedWindowDays = days;
     if (trendTextEl) {
-      const isPositive = Number(delta) > 0;
-      const sign = delta > 0 ? '+' : '';
-      trendTextEl.textContent = `${sign}${Number.isFinite(delta) ? delta : 0}% ${caption}`;
+      const numericDelta = Number(delta);
+      const sign = numericDelta > 0 ? '+' : '';
+      trendTextEl.textContent = `${sign}${Number.isFinite(numericDelta) ? numericDelta : 0}% ${caption}`;
+      const trendContainer = trendTextEl.parentElement && trendTextEl.parentElement.classList && trendTextEl.parentElement.classList.contains('trend')
+        ? trendTextEl.parentElement
+        : null;
+      if (Number.isFinite(numericDelta)) {
+        if (numericDelta > 0) {
+          trendTextEl.style.color = '#16a34a'; // green for up
+          if (trendContainer) trendContainer.style.color = '#16a34a';
+        } else if (numericDelta < 0) {
+          trendTextEl.style.color = '#b91c1c'; // red for down
+          if (trendContainer) trendContainer.style.color = '#b91c1c';
+        } else {
+          trendTextEl.style.color = '';
+          if (trendContainer) trendContainer.style.color = '';
+        }
+      }
     }
     // Re-render sparklines to reflect selected window
     if (loadedData) {
@@ -588,7 +836,8 @@
       header.className = 'card-header';
       const title = document.createElement('h2');
       title.className = 'text-sm font-medium';
-      title.style.color = color;
+      // Use regular text color for title; do not color-cycle here
+      title.style.color = '';
       const info = infoById.get(String(a.assessment_id));
       const assessmentName = (info && info.title) ? String(info.title) : `Assessment ${a.assessment_id}`;
       title.textContent = assessmentName;
@@ -611,7 +860,8 @@
       left.appendChild(gauge); left.appendChild(current);
       const right = document.createElement('div');
       right.className = 'current-value';
-      right.style.color = color;
+      // Keep default text color for current value
+      right.style.color = '';
       right.textContent = `${latest && latest.total_score ? latest.total_score.percent : '—'}%`;
       row.appendChild(left); row.appendChild(right);
       content.appendChild(row);
@@ -638,6 +888,7 @@
       calIcon.className = 'inline-block h-3.5 w-3.5';
       calIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
       const metaText = document.createElement('span');
+      // Use regular text color; styling comes from CSS class .meta-text
       metaText.textContent = latest ? `Last update: ${formatDate(latest.finished_at)}` : 'Not started yet';
       meta.appendChild(calIcon); meta.appendChild(metaText);
       const cta = document.createElement('button');
@@ -688,6 +939,36 @@
       loadedEmail = email;
       loadedAssessInfo = Array.isArray(assessInfo) ? assessInfo : [];
       setProfileBand(data);
+      // Wire country → regions linkage on the edit form
+      const inCountry = document.getElementById('profileCountryInput');
+      const inRegion = document.getElementById('profileRegionInput');
+      const countryOtherWrap = document.getElementById('countryOtherWrap');
+      const countryOtherInput = document.getElementById('profileCountryOtherInput');
+      const datalist = document.getElementById('allCountriesList');
+      // Populate datalist once
+      if (datalist && window.Constants && Array.isArray(window.Constants.WORLD_COUNTRIES)) {
+        datalist.innerHTML = '';
+        window.Constants.WORLD_COUNTRIES.forEach(name => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          datalist.appendChild(opt);
+        });
+      }
+      if (inCountry && inRegion) {
+        inCountry.addEventListener('change', () => {
+          const val = String(inCountry.value).trim().toLowerCase();
+          const isOther = val === 'other';
+          if (countryOtherWrap) countryOtherWrap.classList.toggle('hidden', !isOther);
+          inCountry.style.width = isOther ? '200px' : '';
+          if (!isOther) {
+            inRegion.disabled = false;
+            populateRegionsForCountry(inCountry.value, inRegion);
+          } else if (inRegion) {
+            inRegion.disabled = true;
+            inRegion.innerHTML = '<option>—</option>';
+          }
+        });
+      }
       renderAssessments(data, email);
       // Wire timeframe tabs
       tabButtons.forEach(btn => {
@@ -695,13 +976,18 @@
           tabButtons.forEach(b => b.setAttribute('data-state', ''));
           btn.setAttribute('data-state', 'active');
           updateTrendForSelectedWindow();
+          // Recompute benchmarking using selected country
+          setProfileBand(loadedData);
         });
       });
-      // Wire summary region buttons (visual only for now)
+      // Wire summary region buttons: activate and refresh benchmarking
       summaryRegionBtns.forEach(btn => {
         btn.addEventListener('click', () => {
           summaryRegionBtns.forEach(b => b.setAttribute('data-state', ''));
           btn.setAttribute('data-state', 'active');
+          console.log('[dashboard] region button clicked', btn.textContent.trim());
+          // Recompute benchmarking using selected country
+          setProfileBand(loadedData);
         });
       });
       updateTrendForSelectedWindow();

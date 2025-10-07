@@ -29,8 +29,8 @@
   }
 
   async function fetchSubmissionDetails(resultKey) {
-    const url = `/api/v1/submissionDetails?result_key=${encodeURIComponent(resultKey)}`;
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const url = `/api/v1/submissionDetails?result_key=${encodeURIComponent(resultKey)}&ts=${Date.now()}`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(text || `Request failed: ${res.status}`);
@@ -239,7 +239,7 @@
 
   let currentEmail = '';
 
-  async function addAction(email, categoryId, stage) {
+  async function addAction(email, categoryId, stage, categoryCode) {
     try {
       const res = await fetch('/api/v1/add_action', {
         method: 'POST',
@@ -248,15 +248,26 @@
       });
       if (res.status === 409) {
         alert('Action already added');
-        if (email) window.location.href = `/next.html?email=${encodeURIComponent(email)}`;
+        if (email) window.location.href = `/next.html?email=${encodeURIComponent(email)}${categoryCode ? `&select_category_code=${encodeURIComponent(categoryCode)}` : ''}`;
         return;
       }
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         throw new Error(text || `Request failed: ${res.status}`);
       }
+      // Optimistically swap main button to "View Existing Action" before navigating (helps bfcache back)
+      const addBtn = qid('addNextBtn');
+      if (addBtn) {
+        addBtn.textContent = 'View Existing Action >';
+        addBtn.classList.add('button-plain');
+        addBtn.onclick = () => {
+          const emailNow = email || getParam('email') || '';
+          if (emailNow) window.location.href = `/next.html?email=${encodeURIComponent(emailNow)}${categoryCode ? `&select_category_code=${encodeURIComponent(categoryCode)}` : ''}`;
+          else window.location.href = '/next.html';
+        };
+      }
       // On success, navigate to Next Steps
-      if (email) window.location.href = `/next.html?email=${encodeURIComponent(email)}`;
+      if (email) window.location.href = `/next.html?email=${encodeURIComponent(email)}${categoryCode ? `&select_category_code=${encodeURIComponent(categoryCode)}` : ''}`;
     } catch (err) {
       alert(`Failed to add action: ${err && err.message ? err.message : String(err)}`);
     }
@@ -301,7 +312,7 @@
       addNextBtn.onclick = () => {
         const sVal = stageNum === '' ? null : Number(stageNum);
         if (!currentEmail) { alert('Missing email'); return; }
-        addAction(currentEmail, categoryId, sVal);
+        addAction(currentEmail, categoryId, sVal, (cat && cat.code) ? String(cat.code) : '');
       };
     }
 
@@ -313,9 +324,11 @@
       const div = document.createElement('div');
       div.className = 'p-5 rounded-xl border mb-3 question-card';
 
-      // Determine stage for this question from its category
+      // Determine stage for this question: use specific answer stage; do not fall back to category for display
       const cat = (data.categories || []).find(c => String(c.category_id) === String(categoryId)) || {};
-      const stageNum = (cat && (cat.stage || cat.stage === 0)) ? Number(cat.stage) : null;
+      const answerStage = (q && (q.answer_stage || q.answer_stage === 0)) ? Number(q.answer_stage) : null;
+      // Keep category stage separately for plan/CTA logic only
+      const categoryStageNum = (cat && (cat.stage || cat.stage === 0)) ? Number(cat.stage) : null;
 
       // Top row: left code badge, right controls (stage pill + add button)
       const topRow = document.createElement('div');
@@ -330,7 +343,10 @@
       rightTop.className = 'flex items-center gap-2 question-card-actions';
       const stagePill = document.createElement('span');
       stagePill.className = 'inline-block rounded-lg bg-sky-300 text-slate-900 px-4 py-1.5 text-sm font-semibold stage-pill';
-      stagePill.textContent = `Stage ${Number.isInteger(stageNum) ? stageNum : '—'}`;
+      if (!Number.isInteger(answerStage)) {
+        console.log('[details] No answer_stage match', { question_code: code, answers, category_id: String(categoryId) });
+      }
+      stagePill.textContent = `Stage ${Number.isInteger(answerStage) ? answerStage : 'N/A'}`;
       rightTop.appendChild(stagePill);
       // Add button (only if plan available) appended later after we know plan availability
 
@@ -351,18 +367,18 @@
         // Plan available: show progression and benefit
         const details = document.createElement('div');
         details.className = 'text-sm text-slate-700 question-plan-details';
-        const nextStage = Number.isInteger(stageNum) ? stageNum + 1 : '…';
+        const nextStage = Number.isInteger(categoryStageNum) ? categoryStageNum + 1 : '…';
         const progTitle = document.createElement('div');
         progTitle.className = 'font-semibold text-slate-900 question-progression-title';
-        progTitle.textContent = `Stage ${Number.isInteger(stageNum) ? stageNum : '—'} \u2192 Stage ${nextStage}`;
+        progTitle.textContent = `Stage ${Number.isInteger(categoryStageNum) ? categoryStageNum : '—'} \u2192 Stage ${nextStage}`;
         const progBody = document.createElement('div');
         progBody.className = 'mt-1 question-progression-body';
         {
           const raw = q && q.progression_comment ? String(q.progression_comment) : '';
           let cleaned = raw;
-          if (Number.isInteger(stageNum)) {
+          if (Number.isInteger(categoryStageNum)) {
             const arrowSet = '(?:\\u2192|→|->)';
-            const prefixRe = new RegExp('^\\s*Stage\\s+' + stageNum + '\\s*' + arrowSet + '\\s*Stage\\s+' + nextStage + '\\s*(?:progression)?\\s*[:\\-–—]?\\s*', 'i');
+            const prefixRe = new RegExp('^\\s*Stage\\s+' + categoryStageNum + '\\s*' + arrowSet + '\\s*Stage\\s+' + nextStage + '\\s*(?:progression)?\\s*[:\\-–—]?\\s*', 'i');
             cleaned = raw.replace(prefixRe, '').trim();
           }
           progBody.textContent = cleaned;
@@ -393,46 +409,141 @@
       div.appendChild(bodyWrap);
 
       // Add button (only if plan available) appended to rightTop
-      if (q && q.plan_available && code && Number.isInteger(stageNum)) {
-        const addedCodesQ = Array.isArray(data.added_actions) ? data.added_actions.map(String) : [];
-        const alreadyAddedQ = code && addedCodesQ.includes(String(code));
-        console.log('[details] question add/show check', { code, addedCodes: addedCodesQ, alreadyAddedQ });
+      if (q && q.plan_available && code && Number.isInteger(categoryStageNum)) {
+        const statusMap = (data && data.question_actions_status) ? data.question_actions_status : {};
+        const existingStatus = statusMap && code ? statusMap[code] : null;
+        const treatAsDeletedOrChanged = existingStatus === 'Deleted' || existingStatus === 'Stage Changed';
+        const alreadyAddedQ = !!(existingStatus && !treatAsDeletedOrChanged);
+        console.log('[details] question add/show check', { code, alreadyAddedQ, existingStatus });
 
         const btn = document.createElement('button');
-        if (alreadyAddedQ) {
-          btn.textContent = 'Show Action >';
+        if (alreadyAddedQ && !treatAsDeletedOrChanged) {
+          btn.textContent = 'View Existing Action >';
           btn.className = 'button-plain text-xs add-next-btn';
           btn.style.borderRadius = '6px';
           btn.style.padding = '5px 10px';
           btn.onclick = () => {
             const email = currentEmail || getParam('email') || '';
-            const selCode = (cat && cat.code) ? String(cat.code) : '';
-            if (email) window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_category_code=${encodeURIComponent(selCode)}`;
+            if (email) window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_question_code=${encodeURIComponent(code)}`;
           };
           rightTop.appendChild(btn);
         } else {
-          btn.textContent = 'Add to Next Steps >';
-          btn.className = 'button-primary text-xs px-3 py-1.5 add-next-btn';
-          btn.onclick = async () => {
-          const email = currentEmail || getParam('email') || '';
-          if (!email) { alert('Missing email'); return; }
-          try {
-            const res = await fetch('/api/v1/add_action', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-              body: JSON.stringify({ email, action_type: 'question', question_code: code, stage: Number(stageNum), category_id: String(categoryId), category_code: (cat && cat.code) ? String(cat.code) : null })
-            });
-            if (res.status === 409) { alert('Action already added'); return; }
-            if (!res.ok) {
-              const msg = await res.text().catch(() => '');
-              throw new Error(msg || `Request failed: ${res.status}`);
+          if (q && q.has_resources === false) {
+            btn.textContent = 'Request Resources';
+            btn.className = 'button-plain text-xs add-next-btn';
+            btn.style.borderRadius = '6px';
+            btn.style.padding = '5px 10px';
+            btn.onclick = () => {
+              // Build modal
+              let modal = document.getElementById('requestResourcesModal');
+              if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'requestResourcesModal';
+                modal.style.position = 'fixed';
+                modal.style.inset = '0';
+                modal.style.background = 'rgba(0,0,0,0.4)';
+                modal.style.display = 'flex';
+                modal.style.alignItems = 'center';
+                modal.style.justifyContent = 'center';
+                modal.style.zIndex = '10000';
+                modal.innerHTML = `
+                  <div class="rounded-xl bg-white shadow-lg" style="width: 520px; max-width: 92%; border: 1px solid #E5E7EB;">
+                    <div class="px-4 py-3 border-b" style="border-color:#E5E7EB"><div class="text-sm font-semibold">Request Resources</div></div>
+                    <div class="p-4 space-y-3 text-sm">
+                      <div class="text-slate-700">There are no resources available for instant download — request resources and we’ll send them to you soon.</div>
+                      <div><span class="font-medium">Question:</span> <span id="rr_qcode"></span> — <span id="rr_qtext"></span></div>
+                      <div><span class="font-medium">Stage:</span> <span id="rr_stage"></span></div>
+                      <div>
+                        <label class="block text-slate-600 mb-1">Message (optional)</label>
+                        <textarea id="rr_message" class="w-full rounded-xl border p-2" rows="3" style="border-color:#E5E7EB"></textarea>
+                      </div>
+                    </div>
+                    <div class="px-4 py-3 border-t flex justify-end gap-2" style="border-color:#E5E7EB">
+                      <button id="rr_cancel" class="button-secondary">Cancel</button>
+                      <button id="rr_send" class="button-primary">Send Request</button>
+        </div>
+                  </div>`;
+                document.body.appendChild(modal);
+              }
+              // Fill values
+              const qtextEl = modal.querySelector('#rr_qtext');
+              const qcodeEl = modal.querySelector('#rr_qcode');
+              const stEl = modal.querySelector('#rr_stage');
+              if (qtextEl) qtextEl.textContent = text || '';
+              if (qcodeEl) qcodeEl.textContent = code || '';
+              if (stEl) stEl.textContent = Number.isInteger(categoryStageNum) ? String(categoryStageNum) : '—';
+              modal.classList.remove('hidden');
+              const close = () => { try { modal.remove(); } catch {} };
+              const cancelBtn = modal.querySelector('#rr_cancel');
+              const sendBtn = modal.querySelector('#rr_send');
+              const msgEl = modal.querySelector('#rr_message');
+              if (cancelBtn) {
+                cancelBtn.addEventListener('click', (e) => { e.preventDefault(); close(); });
+              }
+              if (sendBtn) {
+                sendBtn.onclick = async () => {
+                  try {
+                    sendBtn.disabled = true; sendBtn.style.opacity = '0.7'; sendBtn.textContent = 'Sending…'; sendBtn.style.cursor = 'not-allowed';
+                    const payload = { email: currentEmail || getParam('email') || '', question_code: code, question_text: text, stage: categoryStageNum, message: msgEl ? msgEl.value : '' };
+                    const resp = await fetch('/api/v1/requestResources', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload) });
+                    if (!resp.ok) {
+                      const t = await resp.text().catch(() => '');
+                      throw new Error(t || `Failed (${resp.status})`);
+                    }
+                    close();
+                    // toast
+                    (function(){
+                      let c = document.getElementById('toastContainer');
+                      if (!c) { c = document.createElement('div'); c.id='toastContainer'; c.style.position='fixed'; c.style.top='16px'; c.style.right='16px'; c.style.zIndex='9999'; c.style.display='flex'; c.style.flexDirection='column'; c.style.gap='8px'; document.body.appendChild(c); }
+                      const t = document.createElement('div'); t.style.padding='10px 14px'; t.style.borderRadius='10px'; t.style.boxShadow='0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)'; t.style.color='#fff'; t.style.fontSize='14px'; t.style.display='flex'; t.style.alignItems='center'; t.style.gap='8px'; t.style.background='#16A34A'; t.textContent='Request sent. We\'ll email you soon.'; c.appendChild(t); setTimeout(()=>{ t.style.transition='opacity 200ms ease'; t.style.opacity='0'; setTimeout(()=>t.remove(), 220); }, 2200);
+                    })();
+                  } catch (e) {
+                    close();
+                    (function(){
+                      let c = document.getElementById('toastContainer');
+                      if (!c) { c = document.createElement('div'); c.id='toastContainer'; c.style.position='fixed'; c.style.top='16px'; c.style.right='16px'; c.style.zIndex='9999'; c.style.display='flex'; c.style.flexDirection='column'; c.style.gap='8px'; document.body.appendChild(c); }
+                      const t = document.createElement('div'); t.style.padding='10px 14px'; t.style.borderRadius='10px'; t.style.boxShadow='0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)'; t.style.color='#fff'; t.style.fontSize='14px'; t.style.display='flex'; t.style.alignItems='center'; t.style.gap='8px'; t.style.background='#DC2626'; t.textContent='Failed to send request'; c.appendChild(t); setTimeout(()=>{ t.style.transition='opacity 200ms ease'; t.style.opacity='0'; setTimeout(()=>t.remove(), 220); }, 2200);
+                    })();
+                  }
+                };
+              }
+            };
+          } else {
+            btn.textContent = 'Add to Next Steps >';
+            btn.className = 'button-primary text-xs px-3 py-1.5 add-next-btn';
+            btn.onclick = async () => {
+            const email = currentEmail || getParam('email') || '';
+            if (!email) { alert('Missing email'); return; }
+            try {
+              const res = await fetch('/api/v1/add_action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ email, action_type: 'question', question_code: code, stage: Number(categoryStageNum), category_id: String(categoryId), category_code: (cat && cat.code) ? String(cat.code) : null })
+              });
+              if (res.status === 409) { alert('Action already added'); return; }
+              if (!res.ok) {
+                const msg = await res.text().catch(() => '');
+                throw new Error(msg || `Request failed: ${res.status}`);
+              }
+              const created = await res.json().catch(() => ({}));
+              const newId = created && created.id ? String(created.id) : '';
+              // Optimistically swap this question button to View Existing Action before navigating (helps bfcache back)
+              btn.textContent = 'View Existing Action >';
+              btn.className = 'button-plain text-xs add-next-btn';
+              btn.style.borderRadius = '6px';
+              btn.style.padding = '5px 10px';
+              btn.onclick = () => {
+                if (newId) window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_action_id=${encodeURIComponent(newId)}`;
+                else window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_question_code=${encodeURIComponent(code)}`;
+              };
+              // Navigate to Next Steps, preselect this category
+              if (newId) window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_action_id=${encodeURIComponent(newId)}`;
+              else window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_question_code=${encodeURIComponent(code)}`;
+            } catch (err) {
+              alert(`Failed to add action: ${err && err.message ? err.message : String(err)}`);
             }
-            // Navigate to Next Steps, preselect this category
-            window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_category_code=${encodeURIComponent(cat && cat.code ? String(cat.code) : '')}`;
-          } catch (err) {
-            alert(`Failed to add action: ${err && err.message ? err.message : String(err)}`);
+            };
           }
-          };
           rightTop.appendChild(btn);
         }
       }
@@ -461,14 +572,15 @@
       }
     }
 
-    // Toggle Add vs Show Action button based on added_actions codes
-    const addedCodes = Array.isArray(data.added_actions) ? data.added_actions.map(String) : [];
+    // Toggle Add vs View Existing Action using category_actions_status (category-type actions only)
     const thisCode = cat && cat.code ? String(cat.code) : '';
-    const alreadyAdded = thisCode && addedCodes.includes(thisCode);
+    const catStatusMap = (data && data.category_actions_status) ? data.category_actions_status : {};
+    const existingCatStatus = thisCode ? catStatusMap[thisCode] : null;
+    const catActionExists = !!(existingCatStatus && existingCatStatus !== 'Deleted' && existingCatStatus !== 'Stage Changed');
     const addBtn = qid('addNextBtn');
     if (addBtn) {
-      if (alreadyAdded) {
-        addBtn.textContent = 'Show Action >';
+      if (catActionExists) {
+        addBtn.textContent = 'View Existing Action >';
         addBtn.classList.add('button-plain');
         addBtn.onclick = () => {
           const email = currentEmail || getParam('email') || '';
@@ -559,6 +671,7 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
+
 })();
 
 
