@@ -5,7 +5,8 @@
   }
 
   async function fetchTotalScoresByEmail(email) {
-    const url = `/api/v1/getTotalScores?email=${encodeURIComponent(email)}`;
+    const domain = String(email || '').split('@')[1] || '';
+    const url = `/api/v1/getTotalScores?domain=${encodeURIComponent(domain)}`;
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) {
       const text = await res.text().catch(() => '');

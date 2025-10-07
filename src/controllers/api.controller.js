@@ -17,13 +17,19 @@ const nodemailer = require('nodemailer');
 const { assignmentEmail, actionReviewEmail } = require('../utils/emailTemplates');
 const db = require('../db');
 
-// getTotalScores: GET /api/v1/getTotalScores?email=
+// getTotalScores: GET /api/v1/getTotalScores?email=&domain=
 async function getTotalScores(req, res) {
   try {
     const email = (req.query && req.query.email ? String(req.query.email) : '').toLowerCase().trim();
-    if (!email) return res.status(400).json({ error: 'email is required' });
-    const rows = await findLatestPerAssessmentByEmail(email);
-    const profile = await profileRepo.getByEmail(email).catch(() => null);
+    const domainOverride = (req.query && req.query.domain ? String(req.query.domain) : '').toLowerCase().trim();
+    if (!email && !domainOverride) return res.status(400).json({ error: 'email or domain is required' });
+    const domain = domainOverride || (email.includes('@') ? email.split('@')[1] : '');
+    const rows = domain
+      ? await require('../repositories/read.repository').findLatestPerAssessmentByDomain(domain)
+      : await findLatestPerAssessmentByEmail(email);
+    const profile = domain
+      ? (await profileRepo.getByDomain(domain).catch(() => null))
+      : (await profileRepo.getByEmail(email).catch(() => null));
     const items = rows.map(r => ({
       assessment_id: r.assessment_id,
       submission_id: r.submission_id,
@@ -33,7 +39,7 @@ async function getTotalScores(req, res) {
         percent: Number(r.total_percent)
       }
     }));
-    return res.json({ email, profile: profile || null, items });
+    return res.json({ email, domain, profile: profile || null, items });
   } catch (err) {
     console.error('getTotalScores error:', err);
     return res.status(500).json({ error: 'Internal Server Error' });
@@ -42,14 +48,20 @@ async function getTotalScores(req, res) {
 
 module.exports = { getTotalScores };
 
-// getTotalScores with history: groups all submissions per assessment
+// getTotalScores with history: groups all submissions per assessment (email or domain)
 module.exports.getTotalScores = async function(req, res) {
   try {
     const email = (req.query && req.query.email ? String(req.query.email) : '').toLowerCase().trim();
-    if (!email) return res.status(400).json({ error: 'email is required' });
+    const domainOverride = (req.query && req.query.domain ? String(req.query.domain) : '').toLowerCase().trim();
+    if (!email && !domainOverride) return res.status(400).json({ error: 'email or domain is required' });
+    const domain = domainOverride || (email.includes('@') ? email.split('@')[1] : '');
 
-    const rows = await findAllSubmissionsByEmail(email);
-    const profile = await profileRepo.getByEmail(email).catch(() => null);
+    const rows = domain
+      ? await require('../repositories/read.repository').findAllSubmissionsByDomain(domain)
+      : await findAllSubmissionsByEmail(email);
+    const profile = domain
+      ? (await profileRepo.getByDomain(domain).catch(() => null))
+      : (await profileRepo.getByEmail(email).catch(() => null));
     const byAssessment = new Map();
     for (const r of rows) {
       const key = r.assessment_id;
@@ -67,7 +79,7 @@ module.exports.getTotalScores = async function(req, res) {
         byAssessment.get(key).history.push(item);
       }
     }
-    return res.json({ email, profile: profile || null, assessments: Array.from(byAssessment.values()) });
+    return res.json({ email, domain, profile: profile || null, assessments: Array.from(byAssessment.values()) });
   } catch (err) {
     console.error('getTotalScores (history) error:', err);
     return res.status(500).json({ error: 'Internal Server Error' });

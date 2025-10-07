@@ -29,6 +29,34 @@ async function findLatestPerAssessmentByEmail(email) {
 
 module.exports = { findLatestPerAssessmentByEmail };
 
+// findLatestPerAssessmentByDomain: latest per assessment across a domain (email LIKE %@domain)
+async function findLatestPerAssessmentByDomain(domain) {
+  const like = `%@${String(domain || '').toLowerCase().trim()}`;
+  const sql = `
+    SELECT submission_id, assessment_id, result_key, finished_at, total_actual, total_percent, total_tier FROM (
+      SELECT
+        s.id AS submission_id,
+        s.assessment_id,
+        s.result_key,
+        s.finished_at,
+        s.total_actual,
+        s.total_percent,
+        s.total_tier,
+        ROW_NUMBER() OVER (
+          PARTITION BY s.assessment_id
+          ORDER BY s.finished_at DESC, s.id DESC
+        ) AS rn
+      FROM submissions s
+      WHERE LOWER(s.email) LIKE ?
+    ) ranked
+    WHERE rn = 1
+  `;
+  const [rows] = await pool.execute(sql, [like]);
+  return rows;
+}
+
+module.exports.findLatestPerAssessmentByDomain = findLatestPerAssessmentByDomain;
+
 // findAllSubmissionsByEmail: return all submissions for the email ordered by assessment, newest first
 async function findAllSubmissionsByEmail(email) {
   const sql = `
@@ -49,6 +77,28 @@ async function findAllSubmissionsByEmail(email) {
 }
 
 module.exports.findAllSubmissionsByEmail = findAllSubmissionsByEmail;
+
+// findAllSubmissionsByDomain: all submissions for a domain
+async function findAllSubmissionsByDomain(domain) {
+  const like = `%@${String(domain || '').toLowerCase().trim()}`;
+  const sql = `
+    SELECT
+      s.id AS submission_id,
+      s.assessment_id,
+      s.result_key,
+      s.finished_at,
+      s.total_actual,
+      s.total_percent,
+      s.total_tier
+    FROM submissions s
+    WHERE LOWER(s.email) LIKE ?
+    ORDER BY s.assessment_id ASC, s.finished_at DESC, s.id DESC
+  `;
+  const [rows] = await pool.execute(sql, [like]);
+  return rows;
+}
+
+module.exports.findAllSubmissionsByDomain = findAllSubmissionsByDomain;
 
 // findLowestCategoriesForEmail: returns 5 lowest percent categories across all submissions
 async function findLowestCategoriesForEmail(email, limit = 5) {
