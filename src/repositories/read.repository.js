@@ -129,7 +129,7 @@ async function findQuestionsAndAnswersWithCategory(submissionId, assessmentId) {
   // Debug rows to verify answer matching and origin
   try {
     const sample = rows.slice(0, 5).map(r => ({ code: r.question_code, ans: r.answer_text, matchStage: r.answer_stage })).slice(0, 5);
-    console.log('[read.repository] QA sample', { submissionId, assessmentId, sample });
+    // removed noisy server-side console
   } catch {}
   return rows;
 }

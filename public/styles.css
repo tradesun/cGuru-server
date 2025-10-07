@@ -395,3 +395,7 @@ button#schedDescToggle {
 .status-pill{
     padding: 6px 20px !important;
 }
+
+#btnExport{
+    display: none;
+}
