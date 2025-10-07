@@ -559,8 +559,9 @@
     return p.get(name);
   }
 
-  async function fetchRecommendations(email) {
-    const url = `/api/v1/get_recommendations_for_all_added_actions?email=${encodeURIComponent(email)}`;
+  async function fetchRecommendationsByDomain(email) {
+    const dom = String(email || '').split('@')[1] || '';
+    const url = `/api/v1/get_recommendations_for_all_added_actions?domain=${encodeURIComponent(dom)}`;
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -1897,7 +1898,7 @@
       return;
     }
     try {
-      const data = await fetchRecommendations(email);
+      const data = await fetchRecommendationsByDomain(email);
       let items = Array.isArray(data.items) ? data.items.slice() : [];
       // Hide Stage Changed
       items = items.filter(i => String(i.action && i.action.action_status) !== 'Stage Changed');
@@ -2269,7 +2270,7 @@
       // Ensure assessment info is loaded first
       await loadAssessmentInfoForFilters();
       console.log('[FilterBar] loadedAssessInfo count', Array.isArray(loadedAssessInfo) ? loadedAssessInfo.length : 0);
-      const data = await fetchRecommendations(email);
+      const data = await fetchRecommendationsByDomain(email);
       const items = Array.isArray(data && data.items) ? data.items : [];
       rawItems = items;
       console.log('[FilterBar] rawItems loaded', rawItems.length);

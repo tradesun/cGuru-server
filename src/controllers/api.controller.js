@@ -306,13 +306,14 @@ async function getRecommendations(req, res) {
 
 module.exports.getRecommendations = getRecommendations;
 
-// getAllRecommendations: GET /api/v1/get_all_recommendations?email=
+// getAllRecommendations: GET /api/v1/get_all_recommendations?email=&domain=
 async function getAllRecommendations(req, res) {
   try {
     const email = (req.query && req.query.email ? String(req.query.email) : '').toLowerCase().trim();
-    if (!email) return res.status(400).json({ error: 'email is required' });
-
-    const actions = await getActionsByEmail(email);
+    const domainOverride = (req.query && req.query.domain ? String(req.query.domain) : '').toLowerCase().trim();
+    if (!email && !domainOverride) return res.status(400).json({ error: 'email or domain is required' });
+    const domain = domainOverride || (email.includes('@') ? email.split('@')[1] : '');
+    const actions = domain ? await require('../repositories/actions.repository').getActionsByDomain(domain) : await getActionsByEmail(email);
 
     // Overdue cleanup: invites format dd/mm/yy|HH:MM|...
     const today = new Date(); today.setHours(0,0,0,0);
@@ -372,7 +373,7 @@ async function getAllRecommendations(req, res) {
         resources: Array.isArray(resources) ? resources : []
       });
     }
-    return res.json({ email, items: results });
+    return res.json({ email, domain, items: results });
   } catch (err) {
     console.error('getAllRecommendations error:', err);
     return res.status(500).json({ error: 'Internal Server Error' });

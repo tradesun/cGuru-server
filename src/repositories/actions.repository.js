@@ -162,6 +162,28 @@ async function getActionsByEmail(email) {
 
 module.exports.getActionsByEmail = getActionsByEmail;
 
+// getActionsByDomain: list actions for any user under the same email domain
+async function getActionsByDomain(domain) {
+  const dom = String(domain || '').toLowerCase().trim();
+  const like = `%@${dom}`;
+  const [rows] = await pool.execute(
+    `SELECT a.id, a.email, a.action_type, a.category_code, a.question_code, a.stage, a.list_order, a.added_by, a.action_status, a.owner_email, a.owner_acknowledged, a.postpone_date, a.notes, a.log, a.invites, a.invites_count,
+            COALESCE(q.assessment_id,
+                     (SELECT MIN(qc.assessment_id) FROM question_categories qc WHERE qc.category_id = c.id)
+            ) AS assessment_id,
+            c.title AS category_title
+     FROM actions a
+     LEFT JOIN categories c ON (c.code COLLATE utf8mb4_unicode_ci) = (CONVERT(a.category_code USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+     LEFT JOIN questions q ON (q.question_code COLLATE utf8mb4_unicode_ci) = (CONVERT(a.question_code USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+     WHERE LOWER(a.email) LIKE ?
+     ORDER BY a.list_order ASC, a.id ASC`,
+    [like]
+  );
+  return rows;
+}
+
+module.exports.getActionsByDomain = getActionsByDomain;
+
 // reorderActions: transactionally update list_order for a set of actions scoped by email
 async function reorderActions(email, updates) {
   const connection = await pool.getConnection();
