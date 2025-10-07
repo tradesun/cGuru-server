@@ -399,3 +399,6 @@ button#schedDescToggle {
 #btnExport{
     display: none;
 }
+.selectedCategoryTitleTop-wrap {
+    margin-bottom: 25px;
+}
