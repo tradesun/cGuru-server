@@ -15,7 +15,7 @@
         </div>
         <div class="flex items-center gap-2 header-buttons">
           <a id="backLink" href="/index.html" class="button-outline flex items-center">Back to Dashboard</a>
-          <button class="button-primary">Export Category Report</button>
+          <a id="btnActionsDetails" class="button-primary" href="#">Actions</a>
         </div>
       </div>
     </div>
@@ -142,6 +142,18 @@
     <script src="/js/constants.js" defer></script>
     <script src="/js/ui.js" defer></script>
     <script src="/js/details.js" defer></script>
+    <script>
+      (function(){
+        function getParam(name){ try { return new URLSearchParams(window.location.search).get(name); } catch { return null; } }
+        document.addEventListener('DOMContentLoaded', function(){
+          var a = document.getElementById('btnActionsDetails');
+          if (a) {
+            var email = getParam('email') || '';
+            a.href = email ? ('/next.html?email=' + encodeURIComponent(email)) : '/next.html';
+          }
+        });
+      })();
+    </script>
   </body>
   </html>
 

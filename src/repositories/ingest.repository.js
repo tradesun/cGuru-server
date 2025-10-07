@@ -49,9 +49,13 @@ async function saveAll(normalized) {
         [s.assessmentId, q.questionId]
       );
       if (!existsRows || !existsRows[0]) {
-        const err = new Error('Unknown question_id for assessment');
-        err.status = 400;
-        throw err;
+        console.warn('Ingest warning: unknown question_id for assessment — skipping answers', {
+          submissionId,
+          assessmentId: s.assessmentId,
+          questionId: q.questionId,
+          questionText: q.questionText || null
+        });
+        continue;
       }
       for (const a of q.answers) {
         await connection.execute(

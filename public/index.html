@@ -17,8 +17,9 @@
           </div>
           <div class="flex items-center gap-2 header-buttons">
             <button id="btnRecalc" class="button-outline">Recalculate</button>
-              <button id="btnExport" class="button-primary">Export Report</button>
-            </div>
+            <button id="btnExport" class="button-secondary">Export Report</button>
+            <a id="btnActions" class="button-primary" href="#">Actions</a>
+          </div>
           </div>
       </div>
       <!-- Header -->
@@ -274,6 +275,18 @@
     <script src="/js/constants.js" defer></script>
     <script src="/js/api.js" defer></script>
     <script src="/js/dashboard.js" defer></script>
+    <script>
+      (function(){
+        function getParam(name){ try { return new URLSearchParams(window.location.search).get(name); } catch { return null; } }
+        document.addEventListener('DOMContentLoaded', function(){
+          var a = document.getElementById('btnActions');
+          if (a) {
+            var email = getParam('email') || '';
+            a.href = email ? ('/next.html?email=' + encodeURIComponent(email)) : '/next.html';
+          }
+        });
+      })();
+    </script>
   </body>
   </html>
 

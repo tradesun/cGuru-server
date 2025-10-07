@@ -255,6 +255,8 @@
         const text = await res.text().catch(() => '');
         throw new Error(text || `Request failed: ${res.status}`);
       }
+      const created = await res.json().catch(() => ({}));
+      const newId = created && created.id ? String(created.id) : '';
       // Optimistically swap main button to "View Existing Action" before navigating (helps bfcache back)
       const addBtn = qid('addNextBtn');
       if (addBtn) {
@@ -262,12 +264,18 @@
         addBtn.classList.add('button-plain');
         addBtn.onclick = () => {
           const emailNow = email || getParam('email') || '';
-          if (emailNow) window.location.href = `/next.html?email=${encodeURIComponent(emailNow)}${categoryCode ? `&select_category_code=${encodeURIComponent(categoryCode)}` : ''}`;
+          if (emailNow) {
+            const extra = newId ? `&select_action_id=${encodeURIComponent(newId)}` : (categoryCode ? `&select_category_code=${encodeURIComponent(categoryCode)}` : '');
+            window.location.href = `/next.html?email=${encodeURIComponent(emailNow)}${extra}`;
+          }
           else window.location.href = '/next.html';
         };
       }
       // On success, navigate to Next Steps
-      if (email) window.location.href = `/next.html?email=${encodeURIComponent(email)}${categoryCode ? `&select_category_code=${encodeURIComponent(categoryCode)}` : ''}`;
+      if (email) {
+        const extra = newId ? `&select_action_id=${encodeURIComponent(newId)}` : (categoryCode ? `&select_category_code=${encodeURIComponent(categoryCode)}` : '');
+        window.location.href = `/next.html?email=${encodeURIComponent(email)}${extra}`;
+      }
     } catch (err) {
       alert(`Failed to add action: ${err && err.message ? err.message : String(err)}`);
     }
@@ -367,18 +375,18 @@
         // Plan available: show progression and benefit
         const details = document.createElement('div');
         details.className = 'text-sm text-slate-700 question-plan-details';
-        const nextStage = Number.isInteger(categoryStageNum) ? categoryStageNum + 1 : '…';
+        const nextStage = Number.isInteger(answerStage) ? (answerStage + 1) : '…';
         const progTitle = document.createElement('div');
         progTitle.className = 'font-semibold text-slate-900 question-progression-title';
-        progTitle.textContent = `Stage ${Number.isInteger(categoryStageNum) ? categoryStageNum : '—'} \u2192 Stage ${nextStage}`;
+        progTitle.textContent = `Stage ${Number.isInteger(answerStage) ? answerStage : '—'} \u2192 Stage ${nextStage}`;
         const progBody = document.createElement('div');
         progBody.className = 'mt-1 question-progression-body';
         {
           const raw = q && q.progression_comment ? String(q.progression_comment) : '';
           let cleaned = raw;
-          if (Number.isInteger(categoryStageNum)) {
+          if (Number.isInteger(answerStage)) {
             const arrowSet = '(?:\\u2192|→|->)';
-            const prefixRe = new RegExp('^\\s*Stage\\s+' + categoryStageNum + '\\s*' + arrowSet + '\\s*Stage\\s+' + nextStage + '\\s*(?:progression)?\\s*[:\\-–—]?\\s*', 'i');
+            const prefixRe = new RegExp('^\\s*Stage\\s+' + answerStage + '\\s*' + arrowSet + '\\s*Stage\\s+' + nextStage + '\\s*(?:progression)?\\s*[:\\-–—]?\\s*', 'i');
             cleaned = raw.replace(prefixRe, '').trim();
           }
           progBody.textContent = cleaned;
@@ -582,8 +590,23 @@
       if (catActionExists) {
         addBtn.textContent = 'View Existing Action >';
         addBtn.classList.add('button-plain');
-        addBtn.onclick = () => {
+        addBtn.onclick = async () => {
           const email = currentEmail || getParam('email') || '';
+          try {
+            if (email) {
+              // Try to get the specific action id for this category
+              const resp = await fetch(`/api/v1/get_recommendations_for_all_added_actions?email=${encodeURIComponent(email)}`, { headers: { 'Accept': 'application/json' } });
+              if (resp.ok) {
+                const j = await resp.json().catch(() => ({}));
+                const items = Array.isArray(j.items) ? j.items : [];
+                const found = items.find(it => it && it.action && String(it.action.action_type) === 'category' && String(it.action.category_code) === String(thisCode) && String(it.action.action_status) !== 'Deleted' && String(it.action.action_status) !== 'Stage Changed');
+                if (found && found.action && found.action.id) {
+                  window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_action_id=${encodeURIComponent(found.action.id)}`;
+                  return;
+                }
+              }
+            }
+          } catch {}
           if (email) window.location.href = `/next.html?email=${encodeURIComponent(email)}&select_category_code=${encodeURIComponent(thisCode)}`;
           else window.location.href = '/next.html';
         };

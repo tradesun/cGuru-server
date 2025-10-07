@@ -609,6 +609,10 @@
     filters.unassigned = ownVals.has('Unassigned');
     const ownerEmails = Array.from(ownVals).filter(v => v.includes('@'));
     filters.ownerQuery = ownerEmails.join('|');
+    // Quick chip: My Actions (only current user's actions)
+    const myChipActive = Array.from(document.querySelectorAll('.quick-filters .chip')).some(c => c.textContent.trim() === 'My Actions' && c.classList.contains('active'));
+    const currentUserEmail = (typeof getParam === 'function' ? (getParam('email') || '') : (window.Api && typeof window.Api.getQueryParam === 'function' ? window.Api.getQueryParam('email') : ''));
+    filters.myActionsOnly = !!myChipActive && !!currentUserEmail;
 
     // Source: Hide Suggested quick chip
     const hideSuggested = Array.from(document.querySelectorAll('.quick-filters .chip')).some(c => c.textContent.trim() === 'Hide Suggested' && c.classList.contains('active'));
@@ -639,6 +643,7 @@
   function applyFilter() {
     console.log('[FilterBar] applying filter to items', rawItems.length);
     const q = (searchInput && searchInput.value ? searchInput.value.toLowerCase().trim() : '');
+    const currentUserEmail = (typeof getParam === 'function' ? (getParam('email') || '') : (window.Api && typeof window.Api.getQueryParam === 'function' ? window.Api.getQueryParam('email') : ''));
     filteredItems = rawItems.filter(it => {
       if (String(it.action && it.action.action_status) === 'Stage Changed') return false;
       const pr = derivePriorityFromStage(it.action && it.action.stage);
@@ -648,11 +653,17 @@
       if (!isWithinTimeWindow(it.action && it.action.invites, filters.timeWindow, filters.twFrom, filters.twTo)) return false;
       const ownersRaw = it.action && it.action.owner_email ? String(it.action.owner_email).toLowerCase() : '';
       const hasOwners = !!ownersRaw && ownersRaw.trim() !== '';
-      if (filters.unassigned && hasOwners) return false;
-      if (filters.ownerQuery) {
-        const toks = filters.ownerQuery.split('|').map(s => s.toLowerCase()).filter(Boolean);
-        const any = toks.length === 0 ? true : toks.some(tok => ownersRaw.includes(tok));
-        if (!any) return false;
+      if (filters.myActionsOnly) {
+        if (!hasOwners) return false;
+        const me = String(currentUserEmail || '').toLowerCase();
+        if (!me || !ownersRaw.includes(me)) return false;
+      } else {
+        if (filters.unassigned && hasOwners) return false;
+        if (filters.ownerQuery) {
+          const toks = filters.ownerQuery.split('|').map(s => s.toLowerCase()).filter(Boolean);
+          const any = toks.length === 0 ? true : toks.some(tok => ownersRaw.includes(tok));
+          if (!any) return false;
+        }
       }
       const addedBy = String(it.action && it.action.added_by || '');
       if (filters.srcSuggested && addedBy === 'Suggested Action') return false;

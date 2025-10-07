@@ -190,15 +190,18 @@ async function submissionDetails(req, res) {
       let benefit = null;
       let plan_available = false;
       let has_resources = false;
-      if (code && Number.isInteger(stageForCat)) {
-        const plan = await getQuestionPlanByCodeAndStage(code, Number(stageForCat));
+      // Prefer the specific question's answer_stage; fall back to category stage only if missing
+      const ansStage = (q && (q.answer_stage || q.answer_stage === 0)) ? Number(q.answer_stage) : null;
+      const stageToUse = Number.isInteger(ansStage) ? ansStage : (Number.isInteger(stageForCat) ? Number(stageForCat) : null);
+      if (code && Number.isInteger(stageToUse)) {
+        const plan = await getQuestionPlanByCodeAndStage(code, Number(stageToUse));
         if (plan) {
           progression_comment = plan.progression_comment || null;
           benefit = plan.benefit || null;
           plan_available = true;
         }
         try {
-          const resRows = await getResourcesByQuestionAndStage(code, Number(stageForCat));
+          const resRows = await getResourcesByQuestionAndStage(code, Number(stageToUse));
           has_resources = Array.isArray(resRows) && resRows.length > 0;
         } catch {}
       }
